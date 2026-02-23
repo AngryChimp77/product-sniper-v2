@@ -31,6 +31,16 @@ export default function Home() {
     }
   }, []);
 
+  function loadRecentAnalysis(item: Analysis) {
+    setResult({
+      score: item.score,
+      verdict: item.verdict,
+      reason: item.reason,
+    });
+
+    setLink(item.url);
+  }
+
   const reasonPreview =
     result?.reason && result.reason.length > 120
       ? `${result.reason.slice(0, 120)}…`
@@ -72,11 +82,13 @@ export default function Home() {
         date: new Date().toISOString(),
       };
 
-      const updated = [newAnalysis, ...recentAnalyses].slice(0, 3);
+      setRecentAnalyses((prev) => {
+        const updated = [newAnalysis, ...prev].slice(0, 3);
 
-      setRecentAnalyses(updated);
+        localStorage.setItem("product-sniper-recent", JSON.stringify(updated));
 
-      localStorage.setItem("product-sniper-recent", JSON.stringify(updated));
+        return updated;
+      });
     } catch (err) {
       console.error(err);
       setResult({
@@ -110,11 +122,12 @@ export default function Home() {
               {recentAnalyses.map((item, index) => (
                 <div
                   key={index}
+                  onClick={() => loadRecentAnalysis(item)}
                   className="p-3 hover:bg-white/5 transition cursor-pointer"
                 >
                   <div className="flex justify-between items-center gap-3">
                     <div className="text-xs text-gray-400 truncate max-w-[70%]">
-                      {item.url}
+                      {new URL(item.url).hostname}
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-sm font-semibold">
