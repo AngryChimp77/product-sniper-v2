@@ -1,11 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 type AnalysisResult = {
   score: number;
   verdict: string;
   reason: string;
+};
+
+type Analysis = {
+  url: string;
+  score: number;
+  verdict: "WINNER" | "LOSER";
+  reason: string;
+  date: string;
 };
 
 export default function Home() {
@@ -14,6 +22,14 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+   const [recentAnalyses, setRecentAnalyses] = useState<Analysis[]>([]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("product-sniper-recent");
+    if (stored) {
+      setRecentAnalyses(JSON.parse(stored));
+    }
+  }, []);
 
   const reasonPreview =
     result?.reason && result.reason.length > 120
@@ -46,6 +62,21 @@ export default function Home() {
 
       const data = await response.json();
       setResult(data);
+
+      const url = link;
+      const newAnalysis: Analysis = {
+        url,
+        score: data.score,
+        verdict: data.verdict,
+        reason: data.reason,
+        date: new Date().toISOString(),
+      };
+
+      const updated = [newAnalysis, ...recentAnalyses].slice(0, 3);
+
+      setRecentAnalyses(updated);
+
+      localStorage.setItem("product-sniper-recent", JSON.stringify(updated));
     } catch (err) {
       console.error(err);
       setResult({
@@ -71,6 +102,26 @@ export default function Home() {
             verdict.
           </p>
         </div>
+
+        {recentAnalyses.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-xl font-semibold mb-4">Recent Analyses</h2>
+            <div className="space-y-3">
+              {recentAnalyses.map((item, index) => (
+                <div
+                  key={index}
+                  className="p-4 border rounded-lg bg-gray-50"
+                >
+                  <div className="text-sm text-gray-500 truncate">
+                    {item.url}
+                  </div>
+                  <div className="font-semibold">Score: {item.score}</div>
+                  <div>{item.verdict}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 sm:p-6 shadow-xl shadow-slate-950/40 backdrop-blur">
           <div className="space-y-4">
