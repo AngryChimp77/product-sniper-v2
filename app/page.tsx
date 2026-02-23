@@ -13,6 +13,12 @@ export default function Home() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const reasonPreview =
+    result?.reason && result.reason.length > 120
+      ? `${result.reason.slice(0, 120)}…`
+      : result?.reason || "No reason provided.";
 
   async function analyze() {
     if (!link.trim()) {
@@ -101,37 +107,78 @@ export default function Home() {
           </div>
 
           {result && (
-            <div className="mt-6 border-t border-slate-800 pt-5 space-y-4">
-              <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-[0.16em]">
-                Result
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
-                  <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">
-                    Score
-                  </p>
-                  <p className="mt-1 text-xl font-semibold text-indigo-400">
-                    {typeof result.score === "number" ? result.score : "--"}
-                  </p>
-                </div>
-                <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
-                  <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">
-                    Verdict
-                  </p>
-                  <p className="mt-1 text-base font-semibold">
-                    {result.verdict || "--"}
-                  </p>
-                </div>
-                <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 sm:col-span-1">
-                  <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">
-                    Reason
-                  </p>
-                  <p className="mt-1 text-sm text-slate-200">
-                    {result.reason || "No reason provided."}
-                  </p>
+            <>
+              <div className="mt-6 border-t border-slate-800 pt-5 space-y-4">
+                <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-[0.16em]">
+                  Result
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
+                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+                      Score
+                    </p>
+                    <p className="mt-1 text-xl font-semibold text-indigo-400">
+                      {typeof result.score === "number" ? result.score : "--"}
+                    </p>
+                  </div>
+                  <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
+                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+                      Verdict
+                    </p>
+                    <p className="mt-1 text-base font-semibold">
+                      {result.verdict || "--"}
+                    </p>
+                  </div>
+                  <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 sm:col-span-1 flex flex-col justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+                        Reason
+                      </p>
+                      <p className="mt-1 text-sm text-slate-200 line-clamp-3">
+                        {reasonPreview}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsModalOpen(true)}
+                      className="self-start text-xs font-medium text-indigo-400 hover:text-indigo-300 hover:underline underline-offset-4"
+                    >
+                      Read full analysis
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+
+              {isModalOpen && (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                  onClick={() => setIsModalOpen(false)}
+                >
+                  <div
+                    className="relative w-full max-w-xl sm:max-w-2xl mx-4 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl shadow-black/60 p-6 sm:p-7"
+                    style={{ maxWidth: 600 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setIsModalOpen(false)}
+                      className="absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white transition"
+                      aria-label="Close"
+                    >
+                      ×
+                    </button>
+                    <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-[0.16em] mb-3">
+                      Full Analysis
+                    </h3>
+                    <div className="max-h-[60vh] overflow-y-auto pr-1">
+                      <p className="text-base leading-relaxed text-slate-100 whitespace-pre-line">
+                        {result.reason}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 
