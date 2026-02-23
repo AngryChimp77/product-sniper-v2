@@ -104,19 +104,33 @@ export default function Home() {
         </div>
 
         {recentAnalyses.length > 0 && (
-          <div className="mt-8">
-            <h2 className="text-xl font-semibold mb-4">Recent Analyses</h2>
-            <div className="space-y-3">
+          <div className="mt-6 w-full max-w-xl">
+            <h2 className="text-sm text-gray-400 mb-2">Recent Analyses</h2>
+            <div className="bg-white/5 border border-white/10 rounded-xl divide-y divide-white/10">
               {recentAnalyses.map((item, index) => (
                 <div
                   key={index}
-                  className="p-4 border rounded-lg bg-gray-50"
+                  className="p-3 hover:bg-white/5 transition cursor-pointer"
                 >
-                  <div className="text-sm text-gray-500 truncate">
-                    {item.url}
+                  <div className="flex justify-between items-center gap-3">
+                    <div className="text-xs text-gray-400 truncate max-w-[70%]">
+                      {item.url}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm font-semibold">
+                        {item.score}
+                      </div>
+                      <div
+                        className={`text-xs font-semibold ${
+                          item.verdict === "WINNER"
+                            ? "text-green-400"
+                            : "text-red-400"
+                        }`}
+                      >
+                        {item.verdict}
+                      </div>
+                    </div>
                   </div>
-                  <div className="font-semibold">Score: {item.score}</div>
-                  <div>{item.verdict}</div>
                 </div>
               ))}
             </div>
