@@ -26,10 +26,19 @@ export default function Home() {
    const [recentAnalyses, setRecentAnalyses] = useState<Analysis[]>([]);
 
   useEffect(() => {
-    const stored = localStorage.getItem("product-sniper-recent");
-    if (stored) {
-      setRecentAnalyses(JSON.parse(stored));
+    async function loadRecent() {
+      const { data, error } = await supabase
+        .from("analyses")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(3);
+
+      if (!error && data) {
+        setRecentAnalyses(data);
+      }
     }
+
+    loadRecent();
   }, []);
 
   function loadRecentAnalysis(item: Analysis) {
