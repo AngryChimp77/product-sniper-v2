@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 
 type AnalysisResult = {
   score: number;
@@ -74,6 +75,12 @@ export default function Home() {
       setResult(data);
 
       const url = link;
+
+      await supabase.from("analyses").insert({
+        url,
+        score: data.score,
+        verdict: data.verdict,
+      });
       const newAnalysis: Analysis = {
         url,
         score: data.score,
