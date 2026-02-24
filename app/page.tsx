@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type AnalysisResult = {
@@ -23,7 +23,8 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-   const [recentAnalyses, setRecentAnalyses] = useState<Analysis[]>([]);
+  const [recentAnalyses, setRecentAnalyses] = useState<Analysis[]>([]);
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
     async function loadRecent() {
@@ -39,6 +40,22 @@ export default function Home() {
     }
 
     loadRecent();
+  }, []);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   function loadRecentAnalysis(item: Analysis) {
@@ -118,6 +135,16 @@ export default function Home() {
     }
   }
 
+  async function loginWithGoogle() {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+    });
+  }
+
+  async function logout() {
+    await supabase.auth.signOut();
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
       <div className="w-full max-w-xl space-y-8">
@@ -168,6 +195,24 @@ export default function Home() {
 
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 sm:p-6 shadow-xl shadow-slate-950/40 backdrop-blur">
           <div className="space-y-4">
+            {!user ? (
+              <button
+                onClick={loginWithGoogle}
+                className="mb-4 px-4 py-2 bg-white text-black rounded-lg"
+              >
+                Sign in with Google
+              </button>
+            ) : (
+              <div className="mb-4 flex items-center gap-4">
+                <span className="text-sm text-gray-400">{user.email}</span>
+                <button
+                  onClick={logout}
+                  className="px-3 py-1 bg-red-500 text-white rounded"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
             <label className="block text-sm font-medium text-slate-200">
               Product link
             </label>
