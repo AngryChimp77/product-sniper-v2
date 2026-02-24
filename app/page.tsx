@@ -106,6 +106,8 @@ export default function Home() {
         url,
         score: data.score,
         verdict: data.verdict,
+        reason: data.reason,
+        user_id: user.id,
       });
       const newAnalysis: Analysis = {
         url,
