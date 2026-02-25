@@ -51,38 +51,23 @@ export async function POST(req: Request) {
     let isHtmlBlocked = false;
 
     try {
-      const htmlRes = await fetch(url, {
+      const response = await fetch(url, {
+        method: "GET",
         headers: {
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
           "Accept-Language": "en-US,en;q=0.9",
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
         },
+        redirect: "follow",
       });
 
-      const text = await htmlRes.text();
-      html = text || "";
-
-      const trimmed = html.trim();
-      const lower = trimmed.toLowerCase();
-      const blockedIndicators = [
-        "to discuss automated access",
-        "automated access",
-        "robot check",
-        "captcha",
-        "access denied",
-        "are you a robot",
-        "bot detection",
-        "request blocked",
-      ];
-
-      isHtmlBlocked =
-        !htmlRes.ok ||
-        !trimmed ||
-        blockedIndicators.some((phrase) => lower.includes(phrase));
-    } catch (e) {
-      console.log("HTML fetch failed:", e);
-      html = "";
-      isHtmlBlocked = true;
+      html = await response.text();
+    } catch (error) {
+      console.log("FETCH FAILED:", error);
     }
 
     let title = "";
