@@ -88,38 +88,56 @@ export async function POST(req: Request) {
     let title = "";
     let image_url = "";
     let price = "";
+    let currency = "";
+    let rating = "";
+    let reviews = "";
 
     if (!isHtmlBlocked && html) {
-      const titleJsonMatch = html.match(/"subject":"([^"]+)"/);
-      const ogTitleMatch = html.match(
-        /<meta property="og:title" content="([^"]+)"/i
-      );
-      const titleTagMatch = html.match(/<title>(.*?)<\/title>/i);
-      const bestTitleMatch = titleJsonMatch || ogTitleMatch || titleTagMatch;
+      // TITLE
+      const titleMatch =
+        html.match(/<meta property="og:title" content="([^"]+)"/i) ||
+        html.match(/<meta name="og:title" content="([^"]+)"/i) ||
+        html.match(/<title>(.*?)<\/title>/i);
 
-      if (bestTitleMatch) {
-        title = bestTitleMatch[1];
-      }
+      title = titleMatch ? titleMatch[1].trim() : "";
 
+      // IMAGE
       const imageMatch =
         html.match(/<meta property="og:image" content="([^"]+)"/i) ||
-        html.match(/<meta name="og:image" content="([^"]+)"/i) ||
-        html.match(/<meta property="twitter:image" content="([^"]+)"/i) ||
         html.match(/<meta name="twitter:image" content="([^"]+)"/i) ||
         html.match(/"image":"([^"]+)"/i) ||
         html.match(/"large":"([^"]+)"/i);
 
       image_url = imageMatch ? imageMatch[1] : "";
 
-      const priceJsonMatch = html.match(/"price":"([^"]+)"/);
-      const metaPriceMatch = html.match(
-        /<meta property="product:price:amount" content="([^"]+)"/i
-      );
-      const bestPriceMatch = priceJsonMatch || metaPriceMatch;
+      // PRICE
+      const priceMatch =
+        html.match(
+          /<meta property="product:price:amount" content="([^"]+)"/i
+        ) ||
+        html.match(/"price":"([^"]+)"/i) ||
+        html.match(/"salePrice":"([^"]+)"/i) ||
+        html.match(/\$([0-9]+\.?[0-9]*)/);
 
-      if (bestPriceMatch) {
-        price = bestPriceMatch[1];
-      }
+      price = priceMatch ? priceMatch[1] : "";
+
+      // CURRENCY
+      const currencyMatch =
+        html.match(
+          /<meta property="product:price:currency" content="([^"]+)"/i
+        ) || html.match(/"currency":"([^"]+)"/i);
+
+      currency = currencyMatch ? currencyMatch[1] : "";
+
+      // RATING
+      const ratingMatch = html.match(/"ratingValue":"([^"]+)"/i);
+
+      rating = ratingMatch ? ratingMatch[1] : "";
+
+      // REVIEWS COUNT
+      const reviewsMatch = html.match(/"reviewCount":"([^"]+)"/i);
+
+      reviews = reviewsMatch ? reviewsMatch[1] : "";
     }
 
     const domain = new URL(url).hostname;
@@ -129,38 +147,27 @@ export async function POST(req: Request) {
     });
 
     const prompt = `
-You are an expert ecommerce product analyst.
+Analyze this ecommerce product.
 
-Analyze the product using the provided information.
+URL: ${url}
 
-IMPORTANT SCORING RULES:
+Title: ${title}
 
-• Score MUST be an integer
-• Score MUST be between 0 and 100
-• DO NOT use decimals
-• DO NOT use a 0–10 scale
-• Example valid scores: 25, 50, 75, 90
-• Example invalid scores: 7.5, 8, 9.2
+Price: ${price} ${currency}
 
-Return ONLY valid JSON in this exact format:
+Rating: ${rating}
+
+Reviews: ${reviews}
+
+Image URL: ${image_url}
+
+Return ONLY valid JSON:
 
 {
-  "score": number,
-  "verdict": "WINNER" or "LOSER",
-  "reason": "short explanation"
+"score": number from 0 to 100,
+"verdict": "WINNER" or "LOSER",
+"reason": "short explanation"
 }
-
-Product URL:
-${url}
-
-Title:
-${title}
-
-Price:
-${price}
-
-Image URL:
-${image_url}
 `;
 
     const completion = await openai.chat.completions.create({
