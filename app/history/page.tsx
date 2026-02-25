@@ -156,15 +156,13 @@ export default function HistoryPage() {
                   >
                     <div className="flex items-center gap-4 flex-1 min-w-0">
                       {item.image_url ? (
-                        <div className="h-14 w-14 rounded-lg overflow-hidden bg-slate-900 border border-slate-800 flex-shrink-0">
-                          <img
-                            src={item.image_url}
-                            alt={item.title || item.url}
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
+                        <img
+                          src={item.image_url}
+                          alt="Product image"
+                          className="w-16 h-16 object-cover rounded-lg border border-white/10"
+                        />
                       ) : (
-                        <div className="h-14 w-14 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-[11px] text-slate-500 flex-shrink-0">
+                        <div className="w-16 h-16 rounded-lg border border-white/10 flex items-center justify-center text-xs text-white/40">
                           No image
                         </div>
                       )}
