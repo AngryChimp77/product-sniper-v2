@@ -116,50 +116,30 @@ export async function POST(req: Request) {
     let reviews = "";
 
     if (!isHtmlBlocked && html) {
-      // Extract title
-      const titlePatterns = [
-        /<meta property="og:title" content="([^"]+)"/i,
-        /<meta name="og:title" content="([^"]+)"/i,
-        /<meta name="title" content="([^"]+)"/i,
-        /<title>(.*?)<\/title>/i,
-      ];
+      const titleMatch =
+        html.match(/<meta property="og:title" content="([^"]+)"/) ||
+        html.match(/<meta name="twitter:title" content="([^"]+)"/) ||
+        html.match(/<title>(.*?)<\/title>/);
 
-      for (const pattern of titlePatterns) {
-        const match = html.match(pattern);
-        if (match && match[1]) {
-          title = match[1].trim();
-          break;
-        }
-      }
+      title = titleMatch
+        ? titleMatch[1].replace(" - AliExpress", "").trim()
+        : "";
 
-      // Extract image
-      const imagePatterns = [
-        /<meta property="og:image" content="([^"]+)"/i,
-        /<meta name="og:image" content="([^"]+)"/i,
-        /<img[^>]+src="([^"]+)"[^>]*class="[^"]*(main|hero|product)[^"]*"/i,
-      ];
+      const imageMatch =
+        html.match(/<meta property="og:image" content="([^"]+)"/) ||
+        html.match(/"imagePath":"([^"]+)"/) ||
+        html.match(/"imageUrl":"([^"]+)"/);
 
-      for (const pattern of imagePatterns) {
-        const match = html.match(pattern);
-        if (match && match[1]) {
-          image_url = match[1];
-          break;
-        }
-      }
+      image_url = imageMatch
+        ? imageMatch[1].replace(/\\u002F/g, "/")
+        : "";
 
-      // Extract price
-      const pricePatterns = [
-        /<meta property="product:price:amount" content="([^"]+)"/i,
-        /"price":"([^"]+)"/i,
-      ];
+      const priceMatch =
+        html.match(
+          /<meta property="product:price:amount" content="([^"]+)"/
+        ) || html.match(/"price":"([^"]+)"/);
 
-      for (const pattern of pricePatterns) {
-        const match = html.match(pattern);
-        if (match && match[1]) {
-          price = match[1];
-          break;
-        }
-      }
+      price = priceMatch ? priceMatch[1] : "";
 
       // CURRENCY
       const currencyMatch =
