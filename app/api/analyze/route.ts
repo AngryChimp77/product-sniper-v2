@@ -88,35 +88,40 @@ export async function POST(req: Request) {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    const lines: string[] = [
-      "Analyze this product.",
-      "",
-      `Product URL: ${url}`,
-      `Domain: ${domain}`,
-    ];
+    const prompt = `
+You are an expert ecommerce product analyst.
 
-    if (title) {
-      lines.push(`Product title: ${title}`);
-    }
-    if (price) {
-      lines.push(`Product price: ${price}`);
-    }
-    if (image_url) {
-      lines.push(`Image URL: ${image_url}`);
-    }
+Analyze the product using the provided information.
 
-    lines.push(
-      "",
-      "Return ONLY valid JSON:",
-      "",
-      "{",
-      '  "score": number,',
-      '  "verdict": "WINNER" or "LOSER",',
-      '  "reason": "short explanation"',
-      "}"
-    );
+IMPORTANT SCORING RULES:
 
-    const prompt = lines.join("\n");
+• Score MUST be an integer
+• Score MUST be between 0 and 100
+• DO NOT use decimals
+• DO NOT use a 0–10 scale
+• Example valid scores: 25, 50, 75, 90
+• Example invalid scores: 7.5, 8, 9.2
+
+Return ONLY valid JSON in this exact format:
+
+{
+  "score": number,
+  "verdict": "WINNER" or "LOSER",
+  "reason": "short explanation"
+}
+
+Product URL:
+${url}
+
+Title:
+${title}
+
+Price:
+${price}
+
+Image URL:
+${image_url}
+`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
