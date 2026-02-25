@@ -14,7 +14,11 @@ type Analysis = {
   score: number;
   verdict: "WINNER" | "LOSER" | "AVERAGE";
   reason: string;
-  date: string;
+  title?: string;
+  image_url?: string;
+  price?: string;
+  date?: string;
+  created_at?: string;
 };
 
 export default function Home() {
@@ -141,6 +145,9 @@ export default function Home() {
         score,
         verdict: normalizedResult.verdict as Analysis["verdict"],
         reason: normalizedResult.reason,
+        title: data.title,
+        image_url: data.image_url,
+        price: data.price,
         date: new Date().toISOString(),
       };
 
@@ -215,37 +222,80 @@ export default function Home() {
           <div className="mt-6 w-full max-w-xl">
             <h2 className="text-sm text-gray-400 mb-2">Recent Analyses</h2>
             <div className="bg-white/5 border border-white/10 rounded-xl divide-y divide-white/10">
-              {recentAnalyses.map((item, index) => (
-                <div
-                  key={index}
-                  onClick={() => loadRecentAnalysis(item)}
-                  className="p-3 hover:bg-white/5 transition cursor-pointer"
-                >
-                  <div className="flex justify-between items-center gap-3">
-                    <div className="text-xs text-gray-400 truncate max-w-[70%]">
-                      {item.url.length > 40
-                        ? `${item.url.slice(0, 40)}…`
-                        : item.url}
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-sm font-semibold">
-                        {item.score}
+              {recentAnalyses.map((item, index) => {
+                const created =
+                  item.date || item.created_at || new Date().toISOString();
+                const createdLabel = new Date(created).toLocaleDateString(
+                  undefined,
+                  {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  }
+                );
+
+                const verdictClasses =
+                  item.verdict === "WINNER"
+                    ? "text-emerald-400 bg-emerald-400/10 border-emerald-400/30"
+                    : item.verdict === "AVERAGE"
+                    ? "text-amber-300 bg-amber-300/10 border-amber-300/30"
+                    : "text-rose-400 bg-rose-400/10 border-rose-400/30";
+
+                return (
+                  <div
+                    key={index}
+                    onClick={() => loadRecentAnalysis(item)}
+                    className="p-3 sm:p-4 hover:bg-slate-950/60 transition cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      {item.image_url ? (
+                        <div className="h-12 w-12 rounded-lg overflow-hidden bg-slate-900 border border-slate-800 flex-shrink-0">
+                          <img
+                            src={item.image_url}
+                            alt={item.title || item.url}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="h-12 w-12 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-[11px] text-slate-500 flex-shrink-0">
+                          No image
+                        </div>
+                      )}
+
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-slate-200 truncate">
+                          {item.title || "Untitled product"}
+                        </p>
+                        <p className="text-[11px] text-slate-500 truncate">
+                          {item.url}
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                          {item.price && <span>{item.price}</span>}
+                          {createdLabel && (
+                            <>
+                              {item.price && (
+                                <span className="h-1 w-1 rounded-full bg-slate-600" />
+                              )}
+                              <span>{createdLabel}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div
-                        className={`text-xs font-semibold ${
-                          item.verdict === "WINNER"
-                            ? "text-green-400"
-                            : item.verdict === "AVERAGE"
-                            ? "text-yellow-300"
-                            : "text-red-400"
-                        }`}
-                      >
-                        {item.verdict}
+
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-sm font-semibold text-slate-100">
+                          {item.score}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full border text-[11px] font-semibold tracking-wide uppercase ${verdictClasses}`}
+                        >
+                          {item.verdict}
+                        </span>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
