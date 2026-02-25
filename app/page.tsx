@@ -35,7 +35,17 @@ export default function Home() {
         .limit(3);
 
       if (!error && data) {
-        setRecentAnalyses(data);
+        const normalized = data.map((item: any) => {
+          const numericScore = Number(item.score);
+          const score = Number.isNaN(numericScore) ? 0 : numericScore;
+
+          return {
+            ...item,
+            score,
+          } as Analysis;
+        });
+
+        setRecentAnalyses(normalized);
       }
     }
 
@@ -103,22 +113,31 @@ export default function Home() {
       }
 
       const data = await response.json();
-      setResult(data);
+      const numericScore = Number(data.score);
+      const score = Number.isNaN(numericScore) ? 0 : numericScore;
+
+      const normalizedResult: AnalysisResult = {
+        score,
+        verdict: data.verdict,
+        reason: data.reason,
+      };
+
+      setResult(normalizedResult);
 
       const url = link;
 
       await supabase.from("analyses").insert({
         url,
-        score: data.score,
-        verdict: data.verdict,
-        reason: data.reason,
+        score,
+        verdict: normalizedResult.verdict,
+        reason: normalizedResult.reason,
         user_id: user.id,
       });
       const newAnalysis: Analysis = {
         url,
-        score: data.score,
-        verdict: data.verdict,
-        reason: data.reason,
+        score,
+        verdict: normalizedResult.verdict as Analysis["verdict"],
+        reason: normalizedResult.reason,
         date: new Date().toISOString(),
       };
 
