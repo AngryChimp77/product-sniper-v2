@@ -10,26 +10,77 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No link provided" }, { status: 400 });
     }
 
-    const htmlRes = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-      },
-    });
+    let html = "";
+    let isHtmlBlocked = false;
 
-    const html = await htmlRes.text();
+    try {
+      const htmlRes = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
+      });
 
-    const titleMatch =
-      html.match(/<meta property="og:title" content="([^"]+)"/) ||
-      html.match(/<title>(.*?)<\/title>/);
-    const title = titleMatch ? titleMatch[1] : "";
+      const text = await htmlRes.text();
+      html = text || "";
 
-    const imageMatch =
-      html.match(/<meta property="og:image" content="([^"]+)"/);
-    const image_url = imageMatch ? imageMatch[1] : "";
+      const trimmed = html.trim();
+      const lower = trimmed.toLowerCase();
+      const blockedIndicators = [
+        "to discuss automated access",
+        "automated access",
+        "robot check",
+        "captcha",
+        "access denied",
+        "are you a robot",
+        "bot detection",
+        "request blocked",
+      ];
 
-    const priceMatch =
-      html.match(/<meta property="product:price:amount" content="([^"]+)"/);
-    const price = priceMatch ? priceMatch[1] : "";
+      isHtmlBlocked =
+        !htmlRes.ok ||
+        !trimmed ||
+        blockedIndicators.some((phrase) => lower.includes(phrase));
+    } catch (e) {
+      console.log("HTML fetch failed:", e);
+      html = "";
+      isHtmlBlocked = true;
+    }
+
+    let title = "";
+    let image_url = "";
+    let price = "";
+
+    if (!isHtmlBlocked && html) {
+      const titleJsonMatch = html.match(/"subject":"([^"]+)"/);
+      const ogTitleMatch = html.match(
+        /<meta property="og:title" content="([^"]+)"/i
+      );
+      const titleTagMatch = html.match(/<title>(.*?)<\/title>/i);
+      const bestTitleMatch = titleJsonMatch || ogTitleMatch || titleTagMatch;
+
+      if (bestTitleMatch) {
+        title = bestTitleMatch[1];
+      }
+
+      const ogImageMatch = html.match(
+        /<meta property="og:image" content="([^"]+)"/i
+      );
+      if (ogImageMatch) {
+        image_url = ogImageMatch[1];
+      }
+
+      const priceJsonMatch = html.match(/"price":"([^"]+)"/);
+      const metaPriceMatch = html.match(
+        /<meta property="product:price:amount" content="([^"]+)"/i
+      );
+      const bestPriceMatch = priceJsonMatch || metaPriceMatch;
+
+      if (bestPriceMatch) {
+        price = bestPriceMatch[1];
+      }
+    }
 
     const domain = new URL(url).hostname;
 
@@ -37,17 +88,35 @@ export async function POST(req: Request) {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    const prompt = `
-Analyze this product page: ${url}
+    const lines: string[] = [
+      "Analyze this product.",
+      "",
+      `Product URL: ${url}`,
+      `Domain: ${domain}`,
+    ];
 
-Return ONLY valid JSON:
+    if (title) {
+      lines.push(`Product title: ${title}`);
+    }
+    if (price) {
+      lines.push(`Product price: ${price}`);
+    }
+    if (image_url) {
+      lines.push(`Image URL: ${image_url}`);
+    }
 
-{
-  "score": number,
-  "verdict": "WINNER" or "LOSER",
-  "reason": "short explanation"
-}
-`;
+    lines.push(
+      "",
+      "Return ONLY valid JSON:",
+      "",
+      "{",
+      '  "score": number,',
+      '  "verdict": "WINNER" or "LOSER",',
+      '  "reason": "short explanation"',
+      "}"
+    );
+
+    const prompt = lines.join("\n");
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
