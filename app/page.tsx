@@ -127,11 +127,14 @@ export default function Home() {
       const url = link;
 
       await supabase.from("analyses").insert({
+        user_id: user.id,
         url,
         score,
         verdict: normalizedResult.verdict,
         reason: normalizedResult.reason,
-        user_id: user.id,
+        title: data.title,
+        image_url: data.image_url,
+        price: data.price,
       });
       const newAnalysis: Analysis = {
         url,
