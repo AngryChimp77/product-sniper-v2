@@ -93,33 +93,50 @@ export async function POST(req: Request) {
     let reviews = "";
 
     if (!isHtmlBlocked && html) {
-      // TITLE
-      const titleMatch =
-        html.match(/<meta property="og:title" content="([^"]+)"/i) ||
-        html.match(/<meta name="og:title" content="([^"]+)"/i) ||
-        html.match(/<title>(.*?)<\/title>/i);
+      // Extract title
+      const titlePatterns = [
+        /<meta property="og:title" content="([^"]+)"/i,
+        /<meta name="og:title" content="([^"]+)"/i,
+        /<meta name="title" content="([^"]+)"/i,
+        /<title>(.*?)<\/title>/i,
+      ];
 
-      title = titleMatch ? titleMatch[1].trim() : "";
+      for (const pattern of titlePatterns) {
+        const match = html.match(pattern);
+        if (match && match[1]) {
+          title = match[1].trim();
+          break;
+        }
+      }
 
-      // IMAGE
-      const imageMatch =
-        html.match(/<meta property="og:image" content="([^"]+)"/i) ||
-        html.match(/<meta name="twitter:image" content="([^"]+)"/i) ||
-        html.match(/"image":"([^"]+)"/i) ||
-        html.match(/"large":"([^"]+)"/i);
+      // Extract image
+      const imagePatterns = [
+        /<meta property="og:image" content="([^"]+)"/i,
+        /<meta name="og:image" content="([^"]+)"/i,
+        /<img[^>]+src="([^"]+)"[^>]*class="[^"]*(main|hero|product)[^"]*"/i,
+      ];
 
-      image_url = imageMatch ? imageMatch[1] : "";
+      for (const pattern of imagePatterns) {
+        const match = html.match(pattern);
+        if (match && match[1]) {
+          image_url = match[1];
+          break;
+        }
+      }
 
-      // PRICE
-      const priceMatch =
-        html.match(
-          /<meta property="product:price:amount" content="([^"]+)"/i
-        ) ||
-        html.match(/"price":"([^"]+)"/i) ||
-        html.match(/"salePrice":"([^"]+)"/i) ||
-        html.match(/\$([0-9]+\.?[0-9]*)/);
+      // Extract price
+      const pricePatterns = [
+        /<meta property="product:price:amount" content="([^"]+)"/i,
+        /"price":"([^"]+)"/i,
+      ];
 
-      price = priceMatch ? priceMatch[1] : "";
+      for (const pattern of pricePatterns) {
+        const match = html.match(pattern);
+        if (match && match[1]) {
+          price = match[1];
+          break;
+        }
+      }
 
       // CURRENCY
       const currencyMatch =
