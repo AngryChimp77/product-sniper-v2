@@ -3,13 +3,21 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 async function normalizeUrl(url: string): Promise<string> {
-  if (url.includes("aliexpress")) {
-    if (url.includes("/item/")) return url;
-
-    try {
+  try {
+    if (url.includes("aliexpress")) {
       const res = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0" },
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        },
+        redirect: "follow",
       });
+
+      const finalUrl = res.url;
+
+      if (finalUrl.includes("/item/")) {
+        return finalUrl;
+      }
 
       const html = await res.text();
 
@@ -17,21 +25,25 @@ async function normalizeUrl(url: string): Promise<string> {
         /https:\/\/www\.aliexpress\.com\/item\/\d+\.html/
       );
 
-      if (match) return match[0];
-    } catch {
-      // ignore normalization errors
+      if (match) {
+        return match[0];
+      }
+
+      return url;
     }
-  }
 
-  if (url.includes("amazon")) {
-    const match = url.match(/\/dp\/[A-Z0-9]+/);
+    if (url.includes("amazon")) {
+      const match = url.match(/\/dp\/[A-Z0-9]+\//);
 
-    if (match) {
-      return `https://www.amazon.com${match[0]}`;
+      if (match) {
+        return `https://www.amazon.com${match[0]}`;
+      }
     }
-  }
 
-  return url;
+    return url;
+  } catch {
+    return url;
+  }
 }
 
 export async function POST(req: Request) {
