@@ -155,14 +155,38 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
       <div className="w-full max-w-xl space-y-8">
-        <div className="text-center space-y-3">
-          <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
-            🚀 Product Sniper
-          </h1>
-          <p className="text-sm text-slate-400">
-            Paste any product URL to instantly score its potential and get a clear
-            verdict.
-          </p>
+        <div className="flex items-start justify-between">
+          <div className="space-y-3">
+            <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+              🚀 Product Sniper
+            </h1>
+            <p className="text-sm text-slate-400">
+              Paste any product URL to instantly score its potential and get a
+              clear verdict.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {!user ? (
+              <button
+                onClick={loginWithGoogle}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-4 py-2 rounded-lg transition"
+              >
+                Sign in
+              </button>
+            ) : (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-400 max-w-[180px] truncate text-right">
+                  {user.email}
+                </span>
+                <button
+                  onClick={logout}
+                  className="text-gray-400 hover:text-white text-sm underline-offset-4 hover:underline transition"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {recentAnalyses.length > 0 && (
@@ -202,24 +226,6 @@ export default function Home() {
 
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 sm:p-6 shadow-xl shadow-slate-950/40 backdrop-blur">
           <div className="space-y-4">
-            {!user ? (
-              <button
-                onClick={loginWithGoogle}
-                className="mb-4 px-4 py-2 bg-white text-black rounded-lg"
-              >
-                Sign in with Google
-              </button>
-            ) : (
-              <div className="mb-4 flex items-center gap-4">
-                <span className="text-sm text-gray-400">{user.email}</span>
-                <button
-                  onClick={logout}
-                  className="px-3 py-1 bg-red-500 text-white rounded"
-                >
-                  Logout
-                </button>
-              </div>
-            )}
             <label className="block text-sm font-medium text-slate-200">
               Product link
             </label>
