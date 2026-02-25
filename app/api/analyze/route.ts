@@ -101,12 +101,15 @@ export async function POST(req: Request) {
         title = bestTitleMatch[1];
       }
 
-      const ogImageMatch = html.match(
-        /<meta property="og:image" content="([^"]+)"/i
-      );
-      if (ogImageMatch) {
-        image_url = ogImageMatch[1];
-      }
+      const imageMatch =
+        html.match(/<meta property="og:image" content="([^"]+)"/i) ||
+        html.match(/<meta name="og:image" content="([^"]+)"/i) ||
+        html.match(/<meta property="twitter:image" content="([^"]+)"/i) ||
+        html.match(/<meta name="twitter:image" content="([^"]+)"/i) ||
+        html.match(/"image":"([^"]+)"/i) ||
+        html.match(/"large":"([^"]+)"/i);
+
+      image_url = imageMatch ? imageMatch[1] : "";
 
       const priceJsonMatch = html.match(/"price":"([^"]+)"/);
       const metaPriceMatch = html.match(
