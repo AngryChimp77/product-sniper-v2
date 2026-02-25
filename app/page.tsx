@@ -74,6 +74,11 @@ export default function Home() {
       : result?.reason || "No reason provided.";
 
   async function analyze() {
+    if (!user) {
+      setError("Please sign in with Google to analyze products.");
+      return;
+    }
+
     if (!link.trim()) {
       setError("Please paste a product link to analyze.");
       setResult(null);
@@ -234,12 +239,22 @@ export default function Home() {
               <button
                 type="button"
                 onClick={analyze}
-                disabled={isLoading || !link.trim()}
+                disabled={isLoading || !link.trim() || !user}
                 className="inline-flex items-center justify-center rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-indigo-500 transition-colors"
               >
-                {isLoading ? "Analyzing..." : "Analyze"}
+                {isLoading
+                  ? "Analyzing..."
+                  : !user
+                  ? "Login to analyze"
+                  : "Analyze"}
               </button>
             </div>
+            {!user && (
+              <p className="text-xs text-gray-400">
+                Please sign in with Google to analyze products and save your
+                history.
+              </p>
+            )}
             {error && (
               <p className="text-xs text-rose-400">
                 {error}
