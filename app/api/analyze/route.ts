@@ -21,9 +21,7 @@ async function normalizeUrl(url: string): Promise<string> {
 
       const html = await res.text();
 
-      const match = html.match(
-        /https:\/\/www\.aliexpress\.com\/item\/\d+\.html/
-      );
+      const match = html.match(/https:\/\/www\.aliexpress\.com\/item\/\d+\.html/);
 
       if (match) {
         return match[0];
@@ -33,7 +31,7 @@ async function normalizeUrl(url: string): Promise<string> {
     }
 
     if (url.includes("amazon")) {
-      const match = url.match(/\/dp\/[A-Z0-9]+\//);
+      const match = url.match(/\/dp\/[A-Z0-9]+/);
 
       if (match) {
         return `https://www.amazon.com${match[0]}`;
