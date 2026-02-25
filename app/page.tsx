@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 type AnalysisResult = {
@@ -207,6 +208,12 @@ export default function Home() {
                 <span className="text-xs text-gray-400 max-w-[180px] truncate text-right">
                   {user.email}
                 </span>
+                <Link
+                  href="/history"
+                  className="text-gray-400 hover:text-white text-sm underline-offset-4 hover:underline transition"
+                >
+                  History
+                </Link>
                 <button
                   onClick={logout}
                   className="text-gray-400 hover:text-white text-sm underline-offset-4 hover:underline transition"
