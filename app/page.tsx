@@ -104,7 +104,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ link }),
+        body: JSON.stringify({ link, user_id: user.id }),
       });
 
       if (!response.ok) {

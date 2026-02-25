@@ -1,13 +1,50 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const url = body.link as string;
+    const userId = body.user_id as string | undefined;
 
     if (!url) {
       return NextResponse.json({ error: "No link provided" }, { status: 400 });
+    }
+
+    if (userId) {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      if (supabaseUrl && supabaseKey) {
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        const now = new Date();
+        const startOfDay = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate()
+        );
+        const endOfDay = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate() + 1
+        );
+
+        const { count, error } = await supabase
+          .from("analyses")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .gte("created_at", startOfDay.toISOString())
+          .lt("created_at", endOfDay.toISOString());
+
+        if (!error && typeof count === "number" && count >= 5) {
+          return NextResponse.json(
+            { error: "Daily limit reached" },
+            { status: 403 }
+          );
+        }
+      }
     }
 
     let html = "";
