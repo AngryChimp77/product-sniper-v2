@@ -12,7 +12,7 @@ type AnalysisResult = {
 type Analysis = {
   url: string;
   score: number;
-  verdict: "WINNER" | "LOSER";
+  verdict: "WINNER" | "LOSER" | "AVERAGE";
   reason: string;
   date: string;
 };
@@ -201,7 +201,9 @@ export default function Home() {
                 >
                   <div className="flex justify-between items-center gap-3">
                     <div className="text-xs text-gray-400 truncate max-w-[70%]">
-                      {new URL(item.url).hostname}
+                      {item.url.length > 40
+                        ? `${item.url.slice(0, 40)}…`
+                        : item.url}
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-sm font-semibold">
@@ -211,6 +213,8 @@ export default function Home() {
                         className={`text-xs font-semibold ${
                           item.verdict === "WINNER"
                             ? "text-green-400"
+                            : item.verdict === "AVERAGE"
+                            ? "text-yellow-300"
                             : "text-red-400"
                         }`}
                       >
