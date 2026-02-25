@@ -10,21 +10,16 @@ async function normalizeUrl(url: string): Promise<string> {
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
         },
-        redirect: "follow",
       });
-
-      const finalUrl = res.url;
-
-      if (finalUrl.includes("/item/")) {
-        return finalUrl;
-      }
 
       const html = await res.text();
 
-      const match = html.match(/https:\/\/www\.aliexpress\.com\/item\/\d+\.html/);
+      const match =
+        html.match(/"url":"(https:\/\/www\.aliexpress\.com\/item\/\d+\.html)"/) ||
+        html.match(/https:\/\/www\.aliexpress\.com\/item\/\d+\.html/);
 
       if (match) {
-        return match[0];
+        return match[1] || match[0];
       }
 
       return url;
