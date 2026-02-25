@@ -2,10 +2,43 @@ import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+async function normalizeUrl(url: string): Promise<string> {
+  if (url.includes("aliexpress")) {
+    if (url.includes("/item/")) return url;
+
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0" },
+      });
+
+      const html = await res.text();
+
+      const match = html.match(
+        /https:\/\/www\.aliexpress\.com\/item\/\d+\.html/
+      );
+
+      if (match) return match[0];
+    } catch {
+      // ignore normalization errors
+    }
+  }
+
+  if (url.includes("amazon")) {
+    const match = url.match(/\/dp\/[A-Z0-9]+/);
+
+    if (match) {
+      return `https://www.amazon.com${match[0]}`;
+    }
+  }
+
+  return url;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const url = body.link as string;
+    let url = body.link as string;
+    url = await normalizeUrl(url);
     const userId = body.user_id as string | undefined;
 
     if (!url) {
