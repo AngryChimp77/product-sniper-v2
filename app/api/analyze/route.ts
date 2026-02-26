@@ -91,6 +91,11 @@ function extractAliExpressData(html: string): AliExpressData {
   return result;
 }
 
+function extractAliExpressProductId(url: string): string | null {
+  const match = url.match(/\/item\/(\d+)\.html/);
+  return match ? match[1] : null;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -139,37 +144,88 @@ export async function POST(req: Request) {
 
     let html = "";
     let isHtmlBlocked = false;
-
-    try {
-      const response = await fetch(url, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.9",
-          "Cache-Control": "no-cache",
-          Pragma: "no-cache",
-        },
-      });
-
-      html = await response.text();
-    } catch (error) {
-      console.log("FETCH FAILED:", error);
-    }
-
-    const aliData = url.includes("aliexpress")
-      ? extractAliExpressData(html)
-      : { title: null, image: null, price: null };
-
-    console.log("AliExtract:", aliData);
-
     let title = "";
     let image_url = "";
     let price = "";
     let currency = "";
     let rating = "";
     let reviews = "";
+
+    const productId = extractAliExpressProductId(url);
+
+    if (productId) {
+      try {
+        const apiUrl = `https://www.aliexpress.us/aeglodetailweb/api/product/detail.htm?productId=${productId}`;
+        const apiResponse = await fetch(apiUrl);
+        const apiData = await apiResponse.json();
+        if (apiData?.data) {
+          title =
+            apiData.data?.titleModule?.subject || "Untitled product";
+          let image = apiData.data?.imageModule?.imagePathList?.[0] ?? null;
+          if (image != null) {
+            const imgStr = String(image);
+            image_url = imgStr.startsWith("//") ? `https:${imgStr}` : imgStr;
+          }
+          price =
+            apiData.data?.priceModule?.formatedActivityPrice ??
+            apiData.data?.priceModule?.formatedPrice ??
+            "";
+          // Skip HTML fetch when API succeeds
+        } else {
+          const response = await fetch(url, {
+            headers: {
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+              Accept:
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+              "Accept-Language": "en-US,en;q=0.9",
+              "Cache-Control": "no-cache",
+              Pragma: "no-cache",
+            },
+          });
+          html = await response.text();
+        }
+      } catch {
+        try {
+          const response = await fetch(url, {
+            headers: {
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+              Accept:
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+              "Accept-Language": "en-US,en;q=0.9",
+              "Cache-Control": "no-cache",
+              Pragma: "no-cache",
+            },
+          });
+          html = await response.text();
+        } catch (error) {
+          console.log("FETCH FAILED:", error);
+        }
+      }
+    } else {
+      try {
+        const response = await fetch(url, {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+            Accept:
+              "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
+        });
+        html = await response.text();
+      } catch (error) {
+        console.log("FETCH FAILED:", error);
+      }
+    }
+    const aliData = url.includes("aliexpress")
+      ? extractAliExpressData(html)
+      : { title: null, image: null, price: null };
+
+    console.log("AliExtract:", aliData);
 
     if (!isHtmlBlocked && html) {
       const titleMatch =
