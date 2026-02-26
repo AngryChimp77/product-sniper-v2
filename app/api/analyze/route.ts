@@ -39,6 +39,58 @@ async function normalizeUrl(url: string): Promise<string> {
   }
 }
 
+type AliExpressData = {
+  title: string | null;
+  image: string | null;
+  price: string | null;
+};
+
+function extractAliExpressData(html: string): AliExpressData {
+  const result: AliExpressData = {
+    title: null,
+    image: null,
+    price: null,
+  };
+
+  try {
+    const match = html.match(/window\.runParams\s*=\s*({[\s\S]*?});/);
+    if (!match || !match[1]) {
+      return result;
+    }
+
+    const json = JSON.parse(match[1]);
+    const data = json?.data;
+
+    const title = data?.titleModule?.subject;
+    if (title && typeof title === "string") {
+      result.title = title;
+    }
+
+    const imageList = data?.imageModule?.imagePathList;
+    if (Array.isArray(imageList) && imageList.length > 0 && imageList[0]) {
+      let img = String(imageList[0]);
+      if (img.startsWith("//")) {
+        img = `https:${img}`;
+      }
+      result.image = img;
+    }
+
+    const priceModule = data?.priceModule;
+    const activityPrice = priceModule?.formatedActivityPrice;
+    const basePrice = priceModule?.formatedPrice;
+
+    if (activityPrice && typeof activityPrice === "string") {
+      result.price = activityPrice;
+    } else if (basePrice && typeof basePrice === "string") {
+      result.price = basePrice;
+    }
+  } catch (err) {
+    console.log("AliExtract error:", err);
+  }
+
+  return result;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -108,6 +160,12 @@ export async function POST(req: Request) {
       console.log("FETCH FAILED:", error);
     }
 
+    const aliData = url.includes("aliexpress")
+      ? extractAliExpressData(html)
+      : { title: null, image: null, price: null };
+
+    console.log("AliExtract:", aliData);
+
     let title = "";
     let image_url = "";
     let price = "";
@@ -117,29 +175,38 @@ export async function POST(req: Request) {
 
     if (!isHtmlBlocked && html) {
       const titleMatch =
-        html.match(/<meta property="og:title" content="([^"]+)"/) ||
-        html.match(/<meta name="twitter:title" content="([^"]+)"/) ||
-        html.match(/<title>(.*?)<\/title>/);
+        html.match(/<meta property="og:title" content="([^"]+)"/i) ||
+        html.match(/<meta name="twitter:title" content="([^"]+)"/i) ||
+        html.match(/<title>(.*?)<\/title>/i);
 
-      title = titleMatch
+      const fallbackTitle = titleMatch
         ? titleMatch[1].replace(" - AliExpress", "").trim()
         : "";
 
-      const imageMatch =
-        html.match(/<meta property="og:image" content="([^"]+)"/) ||
-        html.match(/"imagePath":"([^"]+)"/) ||
-        html.match(/"imageUrl":"([^"]+)"/);
+      title =
+        aliData.title ||
+        fallbackTitle ||
+        "Untitled product";
 
-      image_url = imageMatch
+      const imageMatch =
+        html.match(/<meta property="og:image" content="([^"]+)"/i) ||
+        html.match(/"imagePath":"([^"]+)"/i) ||
+        html.match(/"imageUrl":"([^"]+)"/i);
+
+      const fallbackImage = imageMatch
         ? imageMatch[1].replace(/\\u002F/g, "/")
         : "";
 
+      image_url = aliData.image || fallbackImage;
+
       const priceMatch =
         html.match(
-          /<meta property="product:price:amount" content="([^"]+)"/
-        ) || html.match(/"price":"([^"]+)"/);
+          /<meta property="product:price:amount" content="([^"]+)"/i
+        ) || html.match(/"price":"([^"]+)"/i);
 
-      price = priceMatch ? priceMatch[1] : "";
+      const fallbackPrice = priceMatch ? priceMatch[1] : "";
+
+      price = aliData.price || fallbackPrice;
 
       // CURRENCY
       const currencyMatch =
