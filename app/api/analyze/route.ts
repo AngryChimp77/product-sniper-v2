@@ -91,6 +91,32 @@ function extractAliExpressData(html: string): AliExpressData {
   return result;
 }
 
+function extractJSONLD(html: string) {
+  const match = html.match(
+    /<script type="application\/ld\+json">([\s\S]*?)<\/script>/
+  );
+
+  if (!match) return null;
+
+  try {
+    const json = JSON.parse(match[1]);
+
+    return {
+      title: (json as any).name || null,
+      image: Array.isArray((json as any).image)
+        ? (json as any).image[0]
+        : (json as any).image || null,
+      price: (json as any).offers?.price || null,
+    } as {
+      title: string | null;
+      image: string | null;
+      price: string | null;
+    };
+  } catch {
+    return null;
+  }
+}
+
 function extractAliExpressProductId(url: string): string | null {
   const match = url.match(/\/item\/(\d+)\.html/);
   return match ? match[1] : null;
@@ -240,6 +266,8 @@ export async function POST(req: Request) {
         console.log("FETCH FAILED:", error);
       }
     }
+
+    const ld = html ? extractJSONLD(html) : null;
     const aliData = url.includes("aliexpress")
       ? extractAliExpressData(html)
       : { title: null, image: null, price: null };
@@ -257,6 +285,7 @@ export async function POST(req: Request) {
         : "";
 
       title =
+        ld?.title ||
         aliData.title ||
         fallbackTitle ||
         "Untitled product";
@@ -270,7 +299,13 @@ export async function POST(req: Request) {
         ? imageMatch[1].replace(/\\u002F/g, "/")
         : "";
 
-      image_url = aliData.image || fallbackImage;
+      const ldImage = ld?.image
+        ? String(ld.image).startsWith("//")
+          ? `https:${String(ld.image)}`
+          : String(ld.image)
+        : null;
+
+      image_url = ldImage || aliData.image || fallbackImage || "";
 
       const priceMatch =
         html.match(
@@ -279,7 +314,7 @@ export async function POST(req: Request) {
 
       const fallbackPrice = priceMatch ? priceMatch[1] : "";
 
-      price = aliData.price || fallbackPrice;
+      price = ld?.price || aliData.price || fallbackPrice;
 
       // CURRENCY
       const currencyMatch =
