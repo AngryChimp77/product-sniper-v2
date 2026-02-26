@@ -151,25 +151,32 @@ export async function POST(req: Request) {
     let rating = "";
     let reviews = "";
 
-    const productId = extractAliExpressProductId(url);
+    const normalizedUrl = url.replace("aliexpress.us", "aliexpress.com");
+    const productId = extractAliExpressProductId(normalizedUrl);
 
     if (productId) {
       try {
-        const apiUrl = `https://www.aliexpress.us/aeglodetailweb/api/product/detail.htm?productId=${productId}`;
+        const apiUrl = `https://www.aliexpress.com/aeglodetailweb/api/product/detail.htm?productId=${productId}`;
         const apiResponse = await fetch(apiUrl);
-        const apiData = await apiResponse.json();
-        if (apiData?.data) {
-          title =
-            apiData.data?.titleModule?.subject || "Untitled product";
-          let image = apiData.data?.imageModule?.imagePathList?.[0] ?? null;
-          if (image != null) {
-            const imgStr = String(image);
+        const apiJson = await apiResponse.json();
+        const aliData = apiJson?.data;
+
+        console.log("AliExpress API result:", aliData);
+
+        const titleFromApi = aliData?.titleModule?.subject || null;
+        const imageFromApi = aliData?.imageModule?.imagePathList?.[0] || null;
+        const priceFromApi =
+          aliData?.priceModule?.formatedActivityPrice ||
+          aliData?.priceModule?.formatedPrice ||
+          null;
+
+        if (aliData) {
+          title = titleFromApi || "Untitled product";
+          if (imageFromApi != null) {
+            const imgStr = String(imageFromApi);
             image_url = imgStr.startsWith("//") ? `https:${imgStr}` : imgStr;
           }
-          price =
-            apiData.data?.priceModule?.formatedActivityPrice ??
-            apiData.data?.priceModule?.formatedPrice ??
-            "";
+          price = priceFromApi ?? "";
           // Skip HTML fetch when API succeeds
         } else {
           const response = await fetch(url, {
