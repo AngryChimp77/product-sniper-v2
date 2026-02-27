@@ -128,6 +128,26 @@ function extractAliExpressProductId(url: string): string | null {
   return match ? match[1] : null;
 }
 
+function extractRunParams(html: string) {
+  const match = html.match(/window\.runParams\s*=\s*({[\s\S]*?});/);
+
+  if (!match) return {};
+
+  try {
+    const json = JSON.parse(match[1]);
+    return {
+      title: json?.data?.titleModule?.subject || null,
+      image: json?.data?.imageModule?.imagePathList?.[0] || null,
+      price:
+        json?.data?.priceModule?.formatedActivityPrice ||
+        json?.data?.priceModule?.formatedPrice ||
+        null,
+    };
+  } catch {
+    return {};
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -274,72 +294,18 @@ export async function POST(req: Request) {
     }
 
     const ld = html ? extractJSONLD(html) : {};
-    const aliData = url.includes("aliexpress")
-      ? extractAliExpressData(html)
-      : { title: null, image: null, price: null };
+    const ali = html ? extractRunParams(html) : {};
 
-    console.log("AliExtract:", aliData);
+    let ldTitle = (ld as any).title || null;
+    let ldImage = (ld as any).image || null;
+    let ldPrice = (ld as any).price || null;
 
-    if (!isHtmlBlocked && html) {
-      const titleMatch =
-        html.match(/<meta property="og:title" content="([^"]+)"/i) ||
-        html.match(/<meta name="twitter:title" content="([^"]+)"/i) ||
-        html.match(/<title>(.*?)<\/title>/i);
+    title = (ali as any).title || ldTitle || "AliExpress Product";
+    image_url = (ali as any).image || ldImage || null;
+    price = (ali as any).price || ldPrice || "";
 
-      const fallbackTitle = titleMatch
-        ? titleMatch[1].replace(" - AliExpress", "").trim()
-        : "";
-
-      title =
-        (ld as any).title ||
-        aliData.title ||
-        fallbackTitle ||
-        "AliExpress Product";
-
-      const imageMatch =
-        html.match(/<meta property="og:image" content="([^"]+)"/i) ||
-        html.match(/"imagePath":"([^"]+)"/i) ||
-        html.match(/"imageUrl":"([^"]+)"/i);
-
-      const fallbackImage = imageMatch
-        ? imageMatch[1].replace(/\\u002F/g, "/")
-        : "";
-
-      const rawLdImage = (ld as any).image || null;
-      const ldImage = rawLdImage
-        ? String(rawLdImage).startsWith("//")
-          ? `https:${String(rawLdImage)}`
-          : String(rawLdImage)
-        : null;
-
-      image_url = ldImage || aliData.image || fallbackImage || "";
-
-      const priceMatch =
-        html.match(
-          /<meta property="product:price:amount" content="([^"]+)"/i
-        ) || html.match(/"price":"([^"]+)"/i);
-
-      const fallbackPrice = priceMatch ? priceMatch[1] : "";
-
-      price = (ld as any).price || aliData.price || fallbackPrice;
-
-      // CURRENCY
-      const currencyMatch =
-        html.match(
-          /<meta property="product:price:currency" content="([^"]+)"/i
-        ) || html.match(/"currency":"([^"]+)"/i);
-
-      currency = currencyMatch ? currencyMatch[1] : "";
-
-      // RATING
-      const ratingMatch = html.match(/"ratingValue":"([^"]+)"/i);
-
-      rating = ratingMatch ? ratingMatch[1] : "";
-
-      // REVIEWS COUNT
-      const reviewsMatch = html.match(/"reviewCount":"([^"]+)"/i);
-
-      reviews = reviewsMatch ? reviewsMatch[1] : "";
+    if (image_url && image_url.startsWith("//")) {
+      image_url = "https:" + image_url;
     }
 
     const domain = new URL(url).hostname;
