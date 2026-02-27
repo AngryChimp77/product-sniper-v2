@@ -92,29 +92,35 @@ function extractAliExpressData(html: string): AliExpressData {
 }
 
 function extractJSONLD(html: string) {
-  const match = html.match(
-    /<script type="application\/ld\+json">([\s\S]*?)<\/script>/
+  const matches = html.match(
+    /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g
   );
 
-  if (!match) return null;
+  if (!matches) return {};
 
-  try {
-    const json = JSON.parse(match[1]);
+  for (const raw of matches) {
+    try {
+      const jsonText = raw
+        .replace('<script type="application/ld+json">', "")
+        .replace("</script>", "");
 
-    return {
-      title: (json as any).name || null,
-      image: Array.isArray((json as any).image)
-        ? (json as any).image[0]
-        : (json as any).image || null,
-      price: (json as any).offers?.price || null,
-    } as {
-      title: string | null;
-      image: string | null;
-      price: string | null;
-    };
-  } catch {
-    return null;
+      const json = JSON.parse(jsonText);
+
+      if ((json as any)["@type"] === "Product") {
+        return {
+          title: (json as any).name || null,
+          image: Array.isArray((json as any).image)
+            ? (json as any).image[0]
+            : (json as any).image || null,
+          price: (json as any).offers?.price || null,
+        };
+      }
+    } catch {
+      // ignore malformed JSON-LD blocks
+    }
   }
+
+  return {};
 }
 
 function extractAliExpressProductId(url: string): string | null {
@@ -267,7 +273,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const ld = html ? extractJSONLD(html) : null;
+    const ld = html ? extractJSONLD(html) : {};
     const aliData = url.includes("aliexpress")
       ? extractAliExpressData(html)
       : { title: null, image: null, price: null };
@@ -285,10 +291,10 @@ export async function POST(req: Request) {
         : "";
 
       title =
-        ld?.title ||
+        (ld as any).title ||
         aliData.title ||
         fallbackTitle ||
-        "Untitled product";
+        "AliExpress Product";
 
       const imageMatch =
         html.match(/<meta property="og:image" content="([^"]+)"/i) ||
@@ -299,10 +305,11 @@ export async function POST(req: Request) {
         ? imageMatch[1].replace(/\\u002F/g, "/")
         : "";
 
-      const ldImage = ld?.image
-        ? String(ld.image).startsWith("//")
-          ? `https:${String(ld.image)}`
-          : String(ld.image)
+      const rawLdImage = (ld as any).image || null;
+      const ldImage = rawLdImage
+        ? String(rawLdImage).startsWith("//")
+          ? `https:${String(rawLdImage)}`
+          : String(rawLdImage)
         : null;
 
       image_url = ldImage || aliData.image || fallbackImage || "";
@@ -314,7 +321,7 @@ export async function POST(req: Request) {
 
       const fallbackPrice = priceMatch ? priceMatch[1] : "";
 
-      price = ld?.price || aliData.price || fallbackPrice;
+      price = (ld as any).price || aliData.price || fallbackPrice;
 
       // CURRENCY
       const currencyMatch =
