@@ -210,18 +210,18 @@ export async function POST(req: Request) {
 
     const scraperUrl = `http://api.scraperapi.com?api_key=${
       process.env.SCRAPERAPI_KEY
-    }&url=${encodeURIComponent(url)}&autoparse=true`;
+    }&render=true&url=${encodeURIComponent(url)}`;
 
     console.log("ScraperAPI structured URL:", scraperUrl);
 
     const scraperResponse = await fetch(scraperUrl);
-    const data = await scraperResponse.json();
+    const html = await scraperResponse.text();
 
-    console.log("ScraperAPI structured data:", data);
+    const ld = extractJSONLD(html);
 
-    title = data.title || "AliExpress Product";
-    image_url = (data.images?.[0] as string | null) ?? null;
-    price = data.price || "";
+    title = (ld as any).title || "AliExpress Product";
+    image_url = (ld as any).image || null;
+    price = (ld as any).price || "";
 
     if (image_url && image_url.startsWith("//")) {
       image_url = "https:" + image_url;
