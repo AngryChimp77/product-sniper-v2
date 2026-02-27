@@ -148,6 +148,13 @@ function extractRunParams(html: string) {
   }
 }
 
+function extractOGImage(html: string): string | null {
+  const match = html.match(
+    /<meta property="og:image" content="([^"]+)"/i
+  );
+  return match ? match[1] : null;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -295,13 +302,14 @@ export async function POST(req: Request) {
 
     const ld = html ? extractJSONLD(html) : {};
     const ali = html ? extractRunParams(html) : {};
+    const ogImage = html ? extractOGImage(html) : null;
 
     let ldTitle = (ld as any).title || null;
     let ldImage = (ld as any).image || null;
     let ldPrice = (ld as any).price || null;
 
     title = (ali as any).title || ldTitle || "AliExpress Product";
-    image_url = (ali as any).image || ldImage || null;
+    image_url = (ali as any).image || ldImage || ogImage || null;
     price = (ali as any).price || ldPrice || "";
 
     if (image_url && image_url.startsWith("//")) {
