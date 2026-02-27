@@ -201,116 +201,27 @@ export async function POST(req: Request) {
       }
     }
 
-    let html = "";
-    let isHtmlBlocked = false;
     let title = "";
-    let image_url = "";
+    let image_url: string | null = null;
     let price = "";
     let currency = "";
     let rating = "";
     let reviews = "";
 
-    const normalizedUrl = url.replace("aliexpress.us", "aliexpress.com");
-    const productId = extractAliExpressProductId(normalizedUrl);
+    const scraperUrl = `http://api.scraperapi.com?api_key=${
+      process.env.SCRAPERAPI_KEY
+    }&url=${encodeURIComponent(url)}&autoparse=true`;
 
-    if (productId) {
-      try {
-        const apiUrl = `https://www.aliexpress.com/aeglodetailweb/api/product/detail.htm?productId=${productId}`;
-        const apiResponse = await fetch(apiUrl);
-        const apiJson = await apiResponse.json();
+    console.log("ScraperAPI structured URL:", scraperUrl);
 
-        console.log("FULL API JSON:", apiJson);
+    const scraperResponse = await fetch(scraperUrl);
+    const data = await scraperResponse.json();
 
-        const aliData = apiJson?.data;
+    console.log("ScraperAPI structured data:", data);
 
-        const titleValue =
-          aliData?.titleModule?.subject ||
-          aliData?.pageModule?.title ||
-          aliData?.metaDataComponent?.title ||
-          "Untitled product";
-
-        let imageValue =
-          aliData?.imageModule?.imagePathList?.[0] ||
-          aliData?.imageModule?.summImagePathList?.[0] ||
-          aliData?.pageModule?.image ||
-          null;
-
-        const priceValue =
-          aliData?.priceModule?.formatedActivityPrice ||
-          aliData?.priceModule?.formatedPrice ||
-          null;
-
-        if (imageValue && imageValue.startsWith("//")) {
-          imageValue = "https:" + imageValue;
-        }
-
-        if (aliData) {
-          title = titleValue;
-          image_url = imageValue != null ? String(imageValue) : "";
-          price = priceValue ?? "";
-          // Skip HTML fetch when API succeeds
-        } else {
-          const response = await fetch(url, {
-            headers: {
-              "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-              Accept:
-                "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-              "Accept-Language": "en-US,en;q=0.9",
-              "Cache-Control": "no-cache",
-              Pragma: "no-cache",
-            },
-          });
-          html = await response.text();
-        }
-      } catch {
-        try {
-          const response = await fetch(url, {
-            headers: {
-              "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-              Accept:
-                "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-              "Accept-Language": "en-US,en;q=0.9",
-              "Cache-Control": "no-cache",
-              Pragma: "no-cache",
-            },
-          });
-          html = await response.text();
-        } catch (error) {
-          console.log("FETCH FAILED:", error);
-        }
-      }
-    } else {
-      try {
-        const response = await fetch(url, {
-          headers: {
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-            Accept:
-              "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Cache-Control": "no-cache",
-            Pragma: "no-cache",
-          },
-        });
-        html = await response.text();
-      } catch (error) {
-        console.log("FETCH FAILED:", error);
-      }
-    }
-
-    const ld = html ? extractJSONLD(html) : {};
-    const ali = html ? extractRunParams(html) : {};
-    const ogImage = html ? extractOGImage(html) : null;
-
-    let ldTitle = (ld as any).title || null;
-    let ldImage = (ld as any).image || null;
-    let ldPrice = (ld as any).price || null;
-
-    title = (ali as any).title || ldTitle || "AliExpress Product";
-    image_url = (ali as any).image || ldImage || ogImage || null;
-    price = (ali as any).price || ldPrice || "";
+    title = data.title || "AliExpress Product";
+    image_url = (data.images?.[0] as string | null) ?? null;
+    price = data.price || "";
 
     if (image_url && image_url.startsWith("//")) {
       image_url = "https:" + image_url;
