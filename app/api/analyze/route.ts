@@ -173,28 +173,24 @@ export async function POST(req: Request) {
       if (supabaseUrl && supabaseKey) {
         const supabase = createClient(supabaseUrl, supabaseKey);
 
-        const now = new Date();
-        const startOfDay = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate()
-        );
-        const endOfDay = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate() + 1
-        );
+        const { data: user } = await supabase
+          .from("users")
+          .select("is_pro")
+          .eq("id", userId)
+          .single();
 
-        const { count, error } = await supabase
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+
+        const { count } = await supabase
           .from("analyses")
           .select("*", { count: "exact", head: true })
           .eq("user_id", userId)
-          .gte("created_at", startOfDay.toISOString())
-          .lt("created_at", endOfDay.toISOString());
+          .gte("created_at", startOfDay.toISOString());
 
-        if (!error && typeof count === "number" && count >= 5) {
+        if (!user?.is_pro && typeof count === "number" && count >= 5) {
           return NextResponse.json(
-            { error: "Daily limit reached" },
+            { error: "Free plan limit reached" },
             { status: 403 }
           );
         }
