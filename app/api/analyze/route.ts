@@ -188,6 +188,11 @@ export async function POST(req: Request) {
           .eq("user_id", userId)
           .gte("created_at", startOfMonth.toISOString());
 
+        console.log("MONTHLY LIMIT CHECK");
+        console.log("USER ID:", userId);
+        console.log("START OF MONTH:", startOfMonth.toISOString());
+        console.log("MONTHLY COUNT RESULT:", monthlyCount);
+
         if (
           !user?.is_pro &&
           typeof monthlyCount === "number" &&
@@ -207,6 +212,11 @@ export async function POST(req: Request) {
           .select("*", { count: "exact", head: true })
           .eq("user_id", userId)
           .gte("created_at", startOfDay.toISOString());
+
+        console.log("DAILY LIMIT CHECK");
+        console.log("USER ID:", userId);
+        console.log("START OF DAY:", startOfDay.toISOString());
+        console.log("DAILY COUNT RESULT:", dailyCount);
 
         if (!user?.is_pro && typeof dailyCount === "number" && dailyCount >= 5) {
           return NextResponse.json(
