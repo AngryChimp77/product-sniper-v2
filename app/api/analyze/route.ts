@@ -179,16 +179,36 @@ export async function POST(req: Request) {
           .eq("id", userId)
           .single();
 
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const { count: monthlyCount } = await supabase
+          .from("analyses")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .gte("created_at", startOfMonth.toISOString());
+
+        if (
+          !user?.is_pro &&
+          typeof monthlyCount === "number" &&
+          monthlyCount >= 20
+        ) {
+          return NextResponse.json(
+            { error: "Free plan monthly limit reached" },
+            { status: 403 }
+          );
+        }
+
         const startOfDay = new Date();
         startOfDay.setHours(0, 0, 0, 0);
 
-        const { count } = await supabase
+        const { count: dailyCount } = await supabase
           .from("analyses")
           .select("*", { count: "exact", head: true })
           .eq("user_id", userId)
           .gte("created_at", startOfDay.toISOString());
 
-        if (!user?.is_pro && typeof count === "number" && count >= 5) {
+        if (!user?.is_pro && typeof dailyCount === "number" && dailyCount >= 5) {
           return NextResponse.json(
             { error: "Free plan limit reached" },
             { status: 403 }
