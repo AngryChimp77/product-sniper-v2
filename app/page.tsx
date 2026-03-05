@@ -140,7 +140,7 @@ export default function Home() {
       }
 
       if (typeof data.monthlyUsed === "number") {
-        setMonthlyUsed(data.monthlyUsed);
+        setMonthlyUsed(data.monthlyUsed + 1);
       } else {
         setMonthlyUsed(null);
       }
