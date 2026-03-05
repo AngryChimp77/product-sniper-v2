@@ -246,6 +246,12 @@ export default function Home() {
                   {user.email}
                 </span>
                 <Link
+                  href="/upgrade"
+                  className="text-purple-400 hover:text-purple-300 text-sm underline-offset-4 hover:underline transition"
+                >
+                  Upgrade
+                </Link>
+                <Link
                   href="/history"
                   className="text-gray-400 hover:text-white text-sm underline-offset-4 hover:underline transition"
                 >
