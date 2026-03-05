@@ -146,16 +146,16 @@ export default function Home() {
         setMonthlyLimit(null);
       }
 
-      if (!response.ok) {
-        throw new Error(data?.error || "Failed to analyze product");
-      }
-
       if (data.limitReached) {
         setResult(null);
         setLimitMessage(
-          `You have used ${data.monthlyUsed}/${data.monthlyLimit} analyses this month. Upgrade to Pro for unlimited analyses.`
+          `You have used ${data.monthlyUsed}/${data.monthlyLimit} analyses this month.`
         );
         return;
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to analyze product");
       }
       const numericScore = Number(data.score);
       const score = Number.isNaN(numericScore) ? 0 : numericScore;
