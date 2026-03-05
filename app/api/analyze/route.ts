@@ -2,6 +2,8 @@ import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+const FREE_MONTHLY_LIMIT = 20;
+
 async function normalizeUrl(url: string): Promise<string> {
   try {
     if (url.includes("aliexpress")) {
@@ -162,6 +164,7 @@ export async function POST(req: Request) {
     let url = body.link as string;
     url = await normalizeUrl(url);
     const userId = body.user_id as string | undefined;
+    let monthlyUsed: number | null = null;
 
     if (!url) {
       return NextResponse.json({ error: "No link provided" }, { status: 400 });
@@ -194,14 +197,23 @@ export async function POST(req: Request) {
         console.log("MONTHLY COUNT RESULT:", monthlyCount);
         console.log("MONTHLY COUNT ERROR:", monthlyError);
 
+        if (typeof monthlyCount === "number") {
+          monthlyUsed = monthlyCount;
+        }
+
         if (
           !user?.is_pro &&
           typeof monthlyCount === "number" &&
-          monthlyCount >= 20
+          monthlyCount >= FREE_MONTHLY_LIMIT
         ) {
           return NextResponse.json(
-            { error: "Free plan monthly limit reached" },
-            { status: 403 }
+            {
+              limitReached: true,
+              monthlyUsed: monthlyCount,
+              monthlyLimit: FREE_MONTHLY_LIMIT,
+              message: "Free plan monthly limit reached",
+            },
+            { status: 200 }
           );
         }
 
@@ -304,6 +316,9 @@ Return ONLY valid JSON:
       image_url,
       price,
       domain,
+      limitReached: false,
+      monthlyUsed: monthlyUsed,
+      monthlyLimit: FREE_MONTHLY_LIMIT,
     });
 
   } catch (error) {
