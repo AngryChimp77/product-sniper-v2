@@ -367,8 +367,16 @@ export default function Home() {
               </div>
             )}
             {limitMessage && (
-              <div className="bg-yellow-900/40 border border-yellow-700 p-3 rounded-md mt-4">
-                {limitMessage}
+              <div className="bg-yellow-900/40 border border-yellow-700 p-4 rounded-md mt-4">
+                <p className="text-yellow-200 mb-3">
+                  {limitMessage}
+                </p>
+                <button
+                  onClick={() => (window.location.href = "/upgrade")}
+                  className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-md text-white font-medium"
+                >
+                  Upgrade to Pro
+                </button>
               </div>
             )}
             {!user && (
