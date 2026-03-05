@@ -4,6 +4,12 @@ export default function UpgradePage() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
       <div className="w-full max-w-md bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 sm:p-8 shadow-xl shadow-slate-950/40 backdrop-blur text-center space-y-6">
+        <a
+          href="/"
+          className="text-sm text-gray-400 hover:text-white mb-6 inline-block"
+        >
+          ← Back to Product Sniper
+        </a>
         <div className="space-y-2">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
             Upgrade to Product Sniper Pro
