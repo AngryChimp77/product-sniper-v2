@@ -30,6 +30,7 @@ export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [recentAnalyses, setRecentAnalyses] = useState<Analysis[]>([]);
   const [user, setUser] = useState<any>(null);
+  const [limitMessage, setLimitMessage] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadRecent() {
@@ -103,6 +104,7 @@ export default function Home() {
     try {
       setIsLoading(true);
       setError(null);
+      setLimitMessage(null);
 
       const response = await fetch("/api/analyze", {
         method: "POST",
@@ -112,12 +114,19 @@ export default function Home() {
         body: JSON.stringify({ link, user_id: user.id }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to analyze product");
+        throw new Error(data?.error || "Failed to analyze product");
       }
 
-      const data = await response.json();
+      if (data.limitReached) {
+        setResult(null);
+        setLimitMessage(
+          `You have used ${data.monthlyUsed}/${data.monthlyLimit} analyses this month. Upgrade to Pro for unlimited analyses.`
+        );
+        return;
+      }
       const numericScore = Number(data.score);
       const score = Number.isNaN(numericScore) ? 0 : numericScore;
 
@@ -309,6 +318,11 @@ export default function Home() {
 
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 sm:p-6 shadow-xl shadow-slate-950/40 backdrop-blur">
           <div className="space-y-4">
+            {limitMessage && (
+              <p className="text-xs text-amber-400">
+                {limitMessage}
+              </p>
+            )}
             <label className="block text-sm font-medium text-slate-200">
               Product link
             </label>
