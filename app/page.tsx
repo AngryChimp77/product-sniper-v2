@@ -22,6 +22,15 @@ type Analysis = {
   created_at?: string;
 };
 
+function cleanProductUrl(url: string) {
+  try {
+    const u = new URL(url);
+    return `${u.hostname}${u.pathname}`;
+  } catch {
+    return url;
+  }
+}
+
 export default function Home() {
   const [link, setLink] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -362,9 +371,27 @@ export default function Home() {
               </button>
             </div>
             {monthlyUsed !== null && monthlyLimit !== null && (
-              <div className="text-sm text-gray-400 mt-2">
-                Usage: {monthlyUsed}/{monthlyLimit} analyses this month
-              </div>
+              <>
+                <div className="text-sm text-gray-400 mt-2">
+                  Usage: {monthlyUsed}/{monthlyLimit} analyses this month
+                </div>
+                {!user?.is_pro &&
+                  monthlyUsed >= 15 &&
+                  monthlyUsed < monthlyLimit && (
+                    <div className="bg-purple-900/30 border border-purple-700 p-3 rounded-md mt-3">
+                      <p className="text-purple-200">
+                        Only {monthlyLimit - monthlyUsed} free analyses left this
+                        month.
+                      </p>
+                      <button
+                        onClick={() => (window.location.href = "/upgrade")}
+                        className="mt-2 bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-md text-white"
+                      >
+                        Upgrade to Pro
+                      </button>
+                    </div>
+                  )}
+              </>
             )}
             {limitMessage && (
               <div className="bg-yellow-900/40 border border-yellow-700 p-4 rounded-md mt-4">
