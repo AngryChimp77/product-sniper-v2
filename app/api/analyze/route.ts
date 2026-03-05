@@ -201,20 +201,12 @@ export async function POST(req: Request) {
           monthlyUsed = monthlyCount;
         }
 
-        if (
-          !user?.is_pro &&
-          typeof monthlyCount === "number" &&
-          monthlyCount >= FREE_MONTHLY_LIMIT
-        ) {
-          return NextResponse.json(
-            {
-              limitReached: true,
-              monthlyUsed: monthlyCount,
-              monthlyLimit: FREE_MONTHLY_LIMIT,
-              message: "Free plan monthly limit reached",
-            },
-            { status: 200 }
-          );
+        if (!user?.is_pro && monthlyCount >= FREE_MONTHLY_LIMIT) {
+          return NextResponse.json({
+            limitReached: true,
+            monthlyUsed: monthlyCount,
+            monthlyLimit: FREE_MONTHLY_LIMIT,
+          });
         }
 
         const { data: dailyCount, error: dailyError } = await supabase.rpc(
