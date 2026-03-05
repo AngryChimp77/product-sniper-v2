@@ -186,14 +186,10 @@ export async function POST(req: Request) {
           .eq("id", userId)
           .single();
 
-        const { count: monthlyCount } = await supabase
-          .from("analyses")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", userId)
-          .gte(
-            "created_at",
-            new Date(new Date().setDate(1)).toISOString()
-          );
+        const { count: monthlyCount } = await supabase.rpc(
+          "count_user_monthly_analyses",
+          { uid: userId }
+        );
 
         console.log("MONTHLY COUNT RESULT:", monthlyCount);
 
@@ -208,18 +204,13 @@ export async function POST(req: Request) {
           );
         }
 
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
-
-        const { count: dailyCount } = await supabase
-          .from("analyses")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", userId)
-          .gte("created_at", startOfDay.toISOString());
+        const { count: dailyCount } = await supabase.rpc(
+          "count_user_daily_analyses",
+          { uid: userId }
+        );
 
         console.log("DAILY LIMIT CHECK");
         console.log("USER ID:", userId);
-        console.log("START OF DAY:", startOfDay.toISOString());
         console.log("DAILY COUNT RESULT:", dailyCount);
 
         if (!user?.is_pro && typeof dailyCount === "number" && dailyCount >= 5) {
