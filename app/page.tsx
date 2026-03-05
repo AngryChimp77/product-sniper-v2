@@ -31,6 +31,8 @@ export default function Home() {
   const [recentAnalyses, setRecentAnalyses] = useState<Analysis[]>([]);
   const [user, setUser] = useState<any>(null);
   const [limitMessage, setLimitMessage] = useState<string | null>(null);
+  const [monthlyUsed, setMonthlyUsed] = useState<number | null>(null);
+  const [monthlyLimit, setMonthlyLimit] = useState<number | null>(null);
 
   useEffect(() => {
     async function loadRecent() {
@@ -115,6 +117,18 @@ export default function Home() {
       });
 
       const data = await response.json();
+
+      if (typeof data.monthlyUsed === "number") {
+        setMonthlyUsed(data.monthlyUsed);
+      } else {
+        setMonthlyUsed(null);
+      }
+
+      if (typeof data.monthlyLimit === "number") {
+        setMonthlyLimit(data.monthlyLimit);
+      } else {
+        setMonthlyLimit(null);
+      }
 
       if (!response.ok) {
         throw new Error(data?.error || "Failed to analyze product");
@@ -318,11 +332,6 @@ export default function Home() {
 
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 sm:p-6 shadow-xl shadow-slate-950/40 backdrop-blur">
           <div className="space-y-4">
-            {limitMessage && (
-              <p className="text-xs text-amber-400">
-                {limitMessage}
-              </p>
-            )}
             <label className="block text-sm font-medium text-slate-200">
               Product link
             </label>
@@ -352,6 +361,16 @@ export default function Home() {
                   : "Analyze"}
               </button>
             </div>
+            {monthlyUsed !== null && monthlyLimit !== null && (
+              <div className="text-sm text-gray-400 mt-2">
+                Usage: {monthlyUsed}/{monthlyLimit} analyses this month
+              </div>
+            )}
+            {limitMessage && (
+              <div className="bg-yellow-900/40 border border-yellow-700 p-3 rounded-md mt-4">
+                {limitMessage}
+              </div>
+            )}
             {!user && (
               <p className="text-xs text-gray-400">
                 Please sign in with Google to analyze products and save your
