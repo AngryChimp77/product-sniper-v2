@@ -31,6 +31,12 @@ function cleanProductUrl(url: string) {
   }
 }
 
+function getScoreColor(score: number) {
+  if (score < 40) return "bg-red-500";
+  if (score < 70) return "bg-yellow-500";
+  return "bg-green-500";
+}
+
 export default function Home() {
   const [link, setLink] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -440,8 +446,13 @@ export default function Home() {
                         </div>
                         <div className="mt-3 w-full bg-gray-800 rounded-full h-2 overflow-hidden">
                           <div
-                            className="bg-green-500 h-full transition-all duration-500"
-                            style={{ width: `${Math.max(Math.min(result.score, 100), 0)}%` }}
+                            className={`${getScoreColor(result.score)} h-full transition-all duration-500`}
+                            style={{
+                              width: `${Math.max(
+                                Math.min(result.score, 100),
+                                0
+                              )}%`,
+                            }}
                           />
                         </div>
                       </>
