@@ -8,6 +8,7 @@ type AnalysisResult = {
   score: number;
   verdict: string;
   reason: string;
+  image?: string | null;
 };
 
 type Analysis = {
@@ -163,6 +164,7 @@ export default function Home() {
         score,
         verdict: data.verdict,
         reason: data.reason,
+        image: data.image_url || data.image || null,
       };
 
       setResult(normalizedResult);
@@ -427,6 +429,15 @@ export default function Home() {
 
           {result && (
             <>
+              {result.image && (
+                <div className="mt-6 flex justify-center">
+                  <img
+                    src={result.image}
+                    alt="Product preview"
+                    className="w-48 h-48 object-contain rounded-lg border border-gray-700"
+                  />
+                </div>
+              )}
               <div className="mt-6 border-t border-slate-800 pt-5 space-y-4">
                 <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-[0.16em]">
                   Result
