@@ -186,12 +186,13 @@ export async function POST(req: Request) {
           .eq("id", userId)
           .single();
 
-        const { data: monthlyCount } = await supabase.rpc(
+        const { data: monthlyCount, error: monthlyError } = await supabase.rpc(
           "count_user_monthly_analyses",
           { uid: userId }
         );
 
         console.log("MONTHLY COUNT RESULT:", monthlyCount);
+        console.log("MONTHLY COUNT ERROR:", monthlyError);
 
         if (
           !user?.is_pro &&
@@ -204,7 +205,7 @@ export async function POST(req: Request) {
           );
         }
 
-        const { data: dailyCount } = await supabase.rpc(
+        const { data: dailyCount, error: dailyError } = await supabase.rpc(
           "count_user_daily_analyses",
           { uid: userId }
         );
@@ -212,6 +213,7 @@ export async function POST(req: Request) {
         console.log("DAILY LIMIT CHECK");
         console.log("USER ID:", userId);
         console.log("DAILY COUNT RESULT:", dailyCount);
+        console.log("DAILY COUNT ERROR:", dailyError);
 
         if (!user?.is_pro && typeof dailyCount === "number" && dailyCount >= 5) {
           return NextResponse.json(
