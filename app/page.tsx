@@ -430,9 +430,22 @@ export default function Home() {
                     <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">
                       Score
                     </p>
-                    <p className="mt-1 text-xl font-semibold text-indigo-400">
+                    <div className="mt-1 text-xl font-semibold text-indigo-400">
                       {typeof result.score === "number" ? result.score : "--"}
-                    </p>
+                    </div>
+                    {typeof result.score === "number" && (
+                      <>
+                        <div className="mt-1 text-lg font-semibold text-slate-100">
+                          {result.score} / 100
+                        </div>
+                        <div className="mt-3 w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+                          <div
+                            className="bg-green-500 h-full transition-all duration-500"
+                            style={{ width: `${Math.max(Math.min(result.score, 100), 0)}%` }}
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                   <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
                     <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">
