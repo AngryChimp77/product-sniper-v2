@@ -157,6 +157,7 @@ function extractOGImage(html: string): string | null {
 
 export async function POST(req: Request) {
   try {
+    const authHeader = req.headers.get("authorization");
     const body = await req.json();
     let url = body.link as string;
     url = await normalizeUrl(url);
@@ -171,7 +172,13 @@ export async function POST(req: Request) {
       const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
       if (supabaseUrl && supabaseKey) {
-        const supabase = createClient(supabaseUrl, supabaseKey);
+        const supabase = createClient(supabaseUrl, supabaseKey, {
+          global: {
+            headers: {
+              Authorization: authHeader ?? "",
+            },
+          },
+        });
 
         const { data: user } = await supabase
           .from("users")
