@@ -186,7 +186,7 @@ export async function POST(req: Request) {
           .eq("id", userId)
           .single();
 
-        const { count: monthlyCount } = await supabase.rpc(
+        const { data: monthlyCount } = await supabase.rpc(
           "count_user_monthly_analyses",
           { uid: userId }
         );
@@ -204,7 +204,7 @@ export async function POST(req: Request) {
           );
         }
 
-        const { count: dailyCount } = await supabase.rpc(
+        const { data: dailyCount } = await supabase.rpc(
           "count_user_daily_analyses",
           { uid: userId }
         );
