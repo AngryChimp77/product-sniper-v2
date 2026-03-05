@@ -134,6 +134,11 @@ export default function Home() {
 
       const data = await response.json();
 
+      if (data.limitReached) {
+        window.location.href = "/upgrade";
+        return;
+      }
+
       if (typeof data.monthlyUsed === "number") {
         setMonthlyUsed(data.monthlyUsed);
       } else {
@@ -144,14 +149,6 @@ export default function Home() {
         setMonthlyLimit(data.monthlyLimit);
       } else {
         setMonthlyLimit(null);
-      }
-
-      if (data.limitReached) {
-        setResult(null);
-        setLimitMessage(
-          `You have used ${data.monthlyUsed}/${data.monthlyLimit} analyses this month.`
-        );
-        return;
       }
 
       if (!response.ok) {
