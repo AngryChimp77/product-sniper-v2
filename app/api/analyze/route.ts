@@ -179,18 +179,15 @@ export async function POST(req: Request) {
           .eq("id", userId)
           .single();
 
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
         const { count: monthlyCount } = await supabase
           .from("analyses")
           .select("*", { count: "exact", head: true })
           .eq("user_id", userId)
-          .gte("created_at", startOfMonth.toISOString());
+          .gte(
+            "created_at",
+            new Date(new Date().setDate(1)).toISOString()
+          );
 
-        console.log("MONTHLY LIMIT CHECK");
-        console.log("USER ID:", userId);
-        console.log("START OF MONTH:", startOfMonth.toISOString());
         console.log("MONTHLY COUNT RESULT:", monthlyCount);
 
         if (
