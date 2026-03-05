@@ -306,7 +306,7 @@ export default function Home() {
                           {item.title || "Untitled product"}
                         </p>
                         <p className="text-[11px] text-slate-500 truncate">
-                          {item.url}
+                          {cleanProductUrl(item.url)}
                         </p>
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
                           {item.price && <span>{item.price}</span>}
