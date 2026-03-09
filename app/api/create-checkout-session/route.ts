@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       metadata: {
         userId: userId.trim(),
       },
-      success_url: `${baseUrl}/dashboard?upgrade=success`,
+      success_url: `${baseUrl}/?upgrade=success`,
       cancel_url: `${baseUrl}/upgrade`,
     });
 
