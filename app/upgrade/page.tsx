@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+
 type User = {
   id: string;
   email: string;
@@ -37,10 +40,46 @@ async function handleUpgrade(user: User) {
 }
 
 export default function UpgradePage() {
-  // Assume `user` is available from Supabase auth/context.
-  const user = (typeof window !== "undefined"
-    ? (window as any).supabaseUser
-    : null) as User | null;
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadUser = async () => {
+      try {
+        const { data, error } = await supabase.auth.getUser();
+        if (error) {
+          console.error("Error fetching Supabase user", error);
+        }
+
+        if (!isMounted) return;
+
+        if (data?.user) {
+          setUser({
+            id: data.user.id,
+            email: data.user.email ?? "",
+          });
+        } else {
+          setUser(null);
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        console.error("Unexpected error fetching Supabase user", err);
+        setUser(null);
+      } finally {
+        if (isMounted) {
+          setIsLoadingUser(false);
+        }
+      }
+    };
+
+    void loadUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
@@ -71,6 +110,7 @@ export default function UpgradePage() {
 
         <button
           className="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg text-white font-semibold mt-6 w-full"
+          disabled={isLoadingUser || !user}
           onClick={() => {
             if (!user) {
               console.error("User not available for upgrade");
