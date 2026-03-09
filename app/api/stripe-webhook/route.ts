@@ -57,6 +57,10 @@ export async function POST(req: Request) {
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
+      
+      console.log("Webhook received checkout.session.completed");
+console.log("Metadata:", session.metadata);
+      
       const userId = session.metadata?.userId;
 
       if (!userId) {
