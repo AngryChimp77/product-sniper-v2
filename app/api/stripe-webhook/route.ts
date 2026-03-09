@@ -67,6 +67,8 @@ export async function POST(req: Request) {
         );
       }
 
+      console.log("Upgrading user to Pro:", userId);
+
       const { error: supabaseError } = await supabaseAdmin
         .from("users")
         .update({ is_pro: true })
