@@ -2,6 +2,8 @@ import Stripe from "stripe";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+export const runtime = "nodejs";
+
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -31,7 +33,9 @@ if (!supabaseServiceRoleKey) {
   );
 }
 
-const stripe = new Stripe(stripeSecretKey);
+const stripe = new Stripe(stripeSecretKey, {
+  apiVersion: "2024-06-20",
+});
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
@@ -60,6 +64,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    console.log("Stripe webhook received");
+    console.log("Signature header:", signature);
+    console.log("Body length:", body.length);
+    console.log("Webhook secret exists:", !!stripeWebhookSecret);
+
     event = stripe.webhooks.constructEvent(
       body,
       signature,
