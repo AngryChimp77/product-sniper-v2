@@ -21,7 +21,11 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await req.json();
+    const body = await req.json();
+    const userId = body.userId;
+
+    console.log("Billing portal request body:", body);
+    console.log("Billing portal userId:", userId);
 
     if (typeof userId !== "string" || !userId.trim()) {
       console.error(
@@ -35,16 +39,17 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedUserId = userId.trim();
-    console.log(
-      "[create-billing-portal] Creating billing portal for user:",
-      normalizedUserId
-    );
+    console.log("Billing portal normalized userId:", normalizedUserId);
+    console.log("Looking up user in Supabase with id:", normalizedUserId);
 
     const { data: user, error: userError } = await supabaseAdmin
       .from("users")
       .select("stripe_customer_id")
       .eq("id", normalizedUserId)
       .single();
+
+    console.log("Supabase query result:", user);
+    console.log("Supabase query error:", userError);
 
     if (userError) {
       console.error(
