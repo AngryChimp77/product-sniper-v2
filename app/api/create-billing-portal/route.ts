@@ -21,12 +21,12 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => null);
+    const { userId } = await req.json();
 
-    if (!body || typeof body.userId !== "string" || !body.userId.trim()) {
+    if (typeof userId !== "string" || !userId.trim()) {
       console.error(
         "[create-billing-portal] Invalid or missing userId in request body",
-        body
+        { userId }
       );
       return NextResponse.json(
         { error: "Invalid or missing userId" },
@@ -34,13 +34,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const userId = body.userId.trim();
-    console.log("[create-billing-portal] Creating billing portal for user:", userId);
+    const normalizedUserId = userId.trim();
+    console.log(
+      "[create-billing-portal] Creating billing portal for user:",
+      normalizedUserId
+    );
 
     const { data: user, error: userError } = await supabaseAdmin
       .from("users")
       .select("stripe_customer_id")
-      .eq("id", userId)
+      .eq("id", normalizedUserId)
       .single();
 
     if (userError) {
@@ -57,7 +60,7 @@ export async function POST(req: NextRequest) {
     if (!user?.stripe_customer_id) {
       console.error(
         "[create-billing-portal] User missing stripe_customer_id",
-        { userId, user }
+        { userId: normalizedUserId, user }
       );
       return NextResponse.json(
         { error: "User does not have a Stripe customer ID" },
