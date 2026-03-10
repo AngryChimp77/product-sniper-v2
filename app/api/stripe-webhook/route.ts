@@ -123,6 +123,37 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         );
       }
+    } else if (event.type === "invoice.paid") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const customerId = invoice.customer;
+
+      if (!customerId) {
+        console.error(
+          "Stripe webhook error: invoice.paid missing customer"
+        );
+        return NextResponse.json(
+          { error: "Missing customer on invoice" },
+          { status: 500 }
+        );
+      }
+
+      const { error: supabaseError } = await supabaseAdmin
+        .from("users")
+        .update({ is_pro: true })
+        .eq("stripe_customer_id", customerId);
+
+      if (supabaseError) {
+        console.error(
+          "Stripe webhook error: Failed to update user on invoice.paid",
+          supabaseError
+        );
+        return NextResponse.json(
+          { error: "Failed to update user status on invoice.paid" },
+          { status: 500 }
+        );
+      }
+
+      console.log("Subscription renewal processed:", customerId);
     }
 
     return NextResponse.json({ received: true });
