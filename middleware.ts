@@ -4,6 +4,20 @@ import { createClient } from "@supabase/supabase-js";
 
 const PRO_ROUTES = ["/analyze", "/history"];
 
+const IS_PRO_COOKIE = "is_pro";
+const IS_PRO_MAX_AGE = 60 * 60 * 24; // 24 hours
+
+function setIsProCookie(response: NextResponse, isPro: boolean) {
+  response.cookies.set(IS_PRO_COOKIE, isPro ? "true" : "false", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    sameSite: "lax",
+    maxAge: IS_PRO_MAX_AGE,
+  });
+  return response;
+}
+
 function getProjectRef(supabaseUrl: string): string | null {
   try {
     const u = new URL(supabaseUrl);
@@ -20,6 +34,15 @@ export async function middleware(req: NextRequest) {
 
   if (!isProRoute) {
     return NextResponse.next();
+  }
+
+  // Quick check: use cached subscription status when present
+  const cachedIsPro = req.cookies.get(IS_PRO_COOKIE)?.value;
+  if (cachedIsPro === "true") {
+    return NextResponse.next();
+  }
+  if (cachedIsPro === "false") {
+    return NextResponse.redirect(new URL("/upgrade", req.url));
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -69,10 +92,14 @@ export async function middleware(req: NextRequest) {
     .single();
 
   if (dbError || !userRecord?.is_pro) {
-    return NextResponse.redirect(new URL("/upgrade", req.url));
+    const redirect = NextResponse.redirect(new URL("/upgrade", req.url));
+    setIsProCookie(redirect, false);
+    return redirect;
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  setIsProCookie(response, userRecord.is_pro);
+  return response;
 }
 
 export const config = {
