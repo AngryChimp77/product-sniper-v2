@@ -9,9 +9,11 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: NextRequest) {
   try {
+    const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+
     const {
       data: { user },
-    } = await supabaseAdmin.auth.getUser();
+    } = await supabaseAdmin.auth.getUser(token ?? "");
 
     if (!user) {
       console.error(
