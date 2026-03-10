@@ -33,9 +33,7 @@ if (!supabaseServiceRoleKey) {
   );
 }
 
-const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: "2024-06-20",
-});
+const stripe = new Stripe(stripeSecretKey);
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
