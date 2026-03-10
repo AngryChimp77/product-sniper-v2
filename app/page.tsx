@@ -50,6 +50,39 @@ export default function Home() {
   const [monthlyUsed, setMonthlyUsed] = useState<number | null>(null);
   const [monthlyLimit, setMonthlyLimit] = useState<number | null>(null);
 
+  async function openBillingPortal(userId: string) {
+    try {
+      const res = await fetch("/api/create-billing-portal", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (!res.ok) {
+        console.error(
+          "[openBillingPortal] Failed to create billing portal session",
+          await res.text()
+        );
+        return;
+      }
+
+      const data = (await res.json()) as { url?: string };
+
+      if (!data.url) {
+        console.error(
+          "[openBillingPortal] No billing portal URL returned from API"
+        );
+        return;
+      }
+
+      window.location.href = data.url;
+    } catch (error) {
+      console.error("[openBillingPortal] Error opening billing portal", error);
+    }
+  }
+
   useEffect(() => {
     async function loadRecent() {
       const { data, error } = await supabase
@@ -251,6 +284,13 @@ export default function Home() {
                 >
                   Upgrade
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => openBillingPortal(user.id)}
+                  className="text-gray-400 hover:text-white text-sm underline-offset-4 hover:underline transition"
+                >
+                  Manage Billing
+                </button>
                 <Link
                   href="/history"
                   className="text-gray-400 hover:text-white text-sm underline-offset-4 hover:underline transition"
