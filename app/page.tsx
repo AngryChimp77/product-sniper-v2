@@ -131,6 +131,24 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!user?.id) return;
+
+    async function setSubscriptionCookie() {
+      const { data: userRecord } = await supabase
+        .from("users")
+        .select("is_pro")
+        .eq("id", user.id)
+        .single();
+
+      if (userRecord) {
+        document.cookie = `is_pro=${userRecord.is_pro}; path=/`;
+      }
+    }
+
+    setSubscriptionCookie();
+  }, [user?.id]);
+
   function loadRecentAnalysis(item: Analysis) {
     setResult({
       score: item.score,
