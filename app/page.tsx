@@ -50,14 +50,25 @@ export default function Home() {
   const [monthlyUsed, setMonthlyUsed] = useState<number | null>(null);
   const [monthlyLimit, setMonthlyLimit] = useState<number | null>(null);
 
-  async function openBillingPortal(userId: string) {
+  async function openBillingPortal() {
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        console.error(
+          "[openBillingPortal] No authenticated user found. Cannot open billing portal."
+        );
+        return;
+      }
+
       const res = await fetch("/api/create-billing-portal", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ userId: user.id }),
       });
 
       if (!res.ok) {
@@ -286,7 +297,7 @@ export default function Home() {
                 </Link>
                 <button
                   type="button"
-                  onClick={() => openBillingPortal(user.id)}
+                  onClick={openBillingPortal}
                   className="text-gray-400 hover:text-white text-sm underline-offset-4 hover:underline transition"
                 >
                   Manage Billing
