@@ -52,23 +52,11 @@ export default function Home() {
 
   async function openBillingPortal() {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        console.error(
-          "[openBillingPortal] No authenticated user found. Cannot open billing portal."
-        );
-        return;
-      }
-
       const res = await fetch("/api/create-billing-portal", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ userId: user.id }),
       });
 
       if (!res.ok) {
