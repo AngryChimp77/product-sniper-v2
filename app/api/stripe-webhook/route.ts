@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   if (!signature) {
     console.error("Stripe webhook error: Missing stripe-signature header");
     return NextResponse.json(
-      { error: "Missing stripe-signature header" },
+      { error: "ERR_NO_SIGNATURE" },
       { status: 400 }
     );
   }
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("Stripe webhook error: Unable to read raw body", error);
     return NextResponse.json(
-      { error: "Unable to read request body" },
+      { error: "ERR_BODY_READ" },
       { status: 400 }
     );
   }
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       error
     );
     return NextResponse.json(
-      { error: "Signature verification failed" },
+      { error: "ERR_SIGNATURE_VERIFICATION" },
       { status: 400 }
     );
   }
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
           "Stripe webhook error: checkout.session.completed missing metadata.userId"
         );
         return NextResponse.json(
-          { error: "Missing userId in session metadata" },
+          { error: "ERR_NO_USER_ID" },
           { status: 400 }
         );
       }
