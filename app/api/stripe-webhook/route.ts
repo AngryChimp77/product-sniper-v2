@@ -1,4 +1,5 @@
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 import Stripe from "stripe";
 import { NextRequest, NextResponse } from "next/server";
@@ -52,7 +53,8 @@ export async function POST(req: NextRequest) {
   let body: string;
 
   try {
-    body = await req.text();
+    const rawBody = await req.arrayBuffer();
+    body = Buffer.from(rawBody).toString("utf8");
   } catch (error) {
     console.error("Stripe webhook error: Unable to read raw body", error);
     return NextResponse.json(
