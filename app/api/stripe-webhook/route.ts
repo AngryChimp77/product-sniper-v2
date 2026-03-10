@@ -89,6 +89,8 @@ export async function POST(req: NextRequest) {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.metadata?.userId;
+      const stripeCustomerId = session.customer;
+      const stripeSubscriptionId = session.subscription;
 
       if (!userId) {
         console.error(
@@ -104,7 +106,11 @@ export async function POST(req: NextRequest) {
 
       const { error: supabaseError } = await supabaseAdmin
         .from("users")
-        .update({ is_pro: true })
+        .update({
+          is_pro: true,
+          stripe_customer_id: stripeCustomerId,
+          stripe_subscription_id: stripeSubscriptionId,
+        })
         .eq("id", userId);
 
       if (supabaseError) {
