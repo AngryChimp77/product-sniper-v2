@@ -154,6 +154,40 @@ export async function POST(req: NextRequest) {
       }
 
       console.log("Subscription renewal processed:", customerId);
+    } else if (event.type === "customer.subscription.deleted") {
+      const subscription = event.data.object as Stripe.Subscription;
+      const subscriptionId = subscription.id;
+
+      if (!subscriptionId) {
+        console.error(
+          "Stripe webhook error: customer.subscription.deleted missing id"
+        );
+        return NextResponse.json(
+          { error: "Missing subscription id on customer.subscription.deleted" },
+          { status: 500 }
+        );
+      }
+
+      const { error: supabaseError } = await supabaseAdmin
+        .from("users")
+        .update({ is_pro: false })
+        .eq("stripe_subscription_id", subscriptionId);
+
+      if (supabaseError) {
+        console.error(
+          "Stripe webhook error: Failed to update user on customer.subscription.deleted",
+          supabaseError
+        );
+        return NextResponse.json(
+          {
+            error:
+              "Failed to update user status on customer.subscription.deleted",
+          },
+          { status: 500 }
+        );
+      }
+
+      console.log("Subscription cancelled:", subscriptionId);
     }
 
     return NextResponse.json({ received: true });
