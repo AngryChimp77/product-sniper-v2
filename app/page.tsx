@@ -52,10 +52,17 @@ export default function Home() {
 
   async function openBillingPortal() {
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       const res = await fetch("/api/create-billing-portal", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(session?.access_token && {
+            Authorization: `Bearer ${session.access_token}`,
+          }),
         },
       });
 
