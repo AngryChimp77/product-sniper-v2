@@ -259,21 +259,59 @@ export async function POST(req: Request) {
     let rating = "";
     let reviews = "";
 
-    const scraperUrl = `http://api.scraperapi.com?api_key=${
-      process.env.SCRAPERAPI_KEY
-    }&url=${encodeURIComponent(url)}`;
+    let html: string | null = null;
 
-    console.log("ScraperAPI structured URL:", scraperUrl);
+    // Step 1: Direct fetch with browser-like User-Agent
+    try {
+      const directResponse = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        },
+      });
 
-    const scraperResponse = await fetch(scraperUrl);
-    const html = await scraperResponse.text();
+      html = await directResponse.text();
 
-    const ogImage = extractOGImage(html);
-    const ld = extractJSONLD(html);
+      const ogImage = extractOGImage(html);
+      const ld = extractJSONLD(html);
 
-    title = (ld as any).title || "AliExpress Product";
-    image_url = (ld as any).image || ogImage || null;
-    price = (ld as any).price || "";
+      title = (ld as any).title || "";
+      image_url = (ld as any).image || ogImage || null;
+      price = (ld as any).price || "";
+    } catch (err) {
+      console.error("Direct fetch failed, will fallback to ScraperAPI:", err);
+    }
+
+    // Step 2: Fallback to ScraperAPI only if we failed to get core product data
+    if (!html || !title || !image_url) {
+      const scraperUrl = `http://api.scraperapi.com?api_key=${
+        process.env.SCRAPERAPI_KEY
+      }&url=${encodeURIComponent(url)}`;
+
+      console.log("ScraperAPI structured URL (fallback):", scraperUrl);
+
+      const scraperResponse = await fetch(scraperUrl);
+      html = await scraperResponse.text();
+
+      const ogImage = extractOGImage(html);
+      const ld = extractJSONLD(html);
+
+      // Only overwrite if still missing or empty
+      if (!title) {
+        title = (ld as any).title || "";
+      }
+      if (!image_url) {
+        image_url = (ld as any).image || ogImage || null;
+      }
+      if (!price) {
+        price = (ld as any).price || "";
+      }
+    }
+
+    // Final fallbacks
+    if (!title) {
+      title = "AliExpress Product";
+    }
 
     if (image_url && image_url.startsWith("//")) {
       image_url = "https:" + image_url;
