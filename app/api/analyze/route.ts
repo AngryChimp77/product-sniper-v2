@@ -385,6 +385,8 @@ Return ONLY valid JSON:
       response_format: { type: "json_object" },
     });
 
+    // ... any additional processing could happen here while OpenAI runs ...
+
     const completion = await aiPromise;
     const result = completion.choices[0].message.content;
     const parsed = JSON.parse(result || "{}");
