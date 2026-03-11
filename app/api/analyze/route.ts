@@ -329,11 +329,9 @@ Return ONLY valid JSON:
     });
 
   } catch (error) {
-
-    console.error(error);
-
-    return NextResponse.json(
-      { error: "Analysis failed" },
+    console.error("ANALYZE API ERROR:", error);
+    return Response.json(
+      { error: String(error) },
       { status: 500 }
     );
   }
