@@ -261,28 +261,38 @@ export async function POST(req: Request) {
 
     let html: string | null = null;
 
-    // Step 1: Direct fetch with browser-like User-Agent
+    // STEP 1 — Fast direct fetch with realistic headers
     try {
       const directResponse = await fetch(url, {
         headers: {
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+          "Accept-Language": "en-US,en;q=0.9",
         },
       });
 
       html = await directResponse.text();
-
-      const ogImage = extractOGImage(html);
-      const ld = extractJSONLD(html);
-
-      title = (ld as any).title || "";
-      image_url = (ld as any).image || ogImage || null;
-      price = (ld as any).price || "";
     } catch (err) {
       console.error("Direct fetch failed, will fallback to ScraperAPI:", err);
     }
 
-    // Step 2: Fallback to ScraperAPI only if we failed to get core product data
+    // STEP 2 — Extract product data from direct HTML
+    let aliData = { title: null, image: null, price: null } as AliExpressData;
+    let ld: any = {};
+    let ogImage: string | null = null;
+
+    if (html) {
+      aliData = extractAliExpressData(html);
+      ld = extractJSONLD(html);
+      ogImage = extractOGImage(html);
+    }
+
+    title = aliData.title || (ld as any).title || "";
+    image_url =
+      aliData.image || (ld as any).image || ogImage || null;
+    price = aliData.price || (ld as any).price || "";
+
+    // STEP 3 — Detect failed extraction and fallback to ScraperAPI
     if (!html || !title || !image_url) {
       const scraperUrl = `http://api.scraperapi.com?api_key=${
         process.env.SCRAPERAPI_KEY
@@ -293,26 +303,23 @@ export async function POST(req: Request) {
       const scraperResponse = await fetch(scraperUrl);
       html = await scraperResponse.text();
 
-      const ogImage = extractOGImage(html);
-      const ld = extractJSONLD(html);
+      aliData = extractAliExpressData(html);
+      ld = extractJSONLD(html);
+      ogImage = extractOGImage(html);
 
-      // Only overwrite if still missing or empty
+      // STEP 5 — Final data merge with priority order
+      title = aliData.title || (ld as any).title || "AliExpress Product";
+      image_url =
+        aliData.image || (ld as any).image || ogImage || null;
+      price = aliData.price || (ld as any).price || "";
+    } else {
+      // Ensure title has a sensible default even when ScraperAPI wasn't needed
       if (!title) {
-        title = (ld as any).title || "";
-      }
-      if (!image_url) {
-        image_url = (ld as any).image || ogImage || null;
-      }
-      if (!price) {
-        price = (ld as any).price || "";
+        title = "AliExpress Product";
       }
     }
 
-    // Final fallbacks
-    if (!title) {
-      title = "AliExpress Product";
-    }
-
+    // Normalise protocol-less images
     if (image_url && image_url.startsWith("//")) {
       image_url = "https:" + image_url;
     }
