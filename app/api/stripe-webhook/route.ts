@@ -179,6 +179,37 @@ export async function POST(req: NextRequest) {
       }
 
       console.log("Subscription renewal processed:", customerId);
+    } else if (event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const customerId = invoice.customer;
+
+      if (!customerId) {
+        console.error(
+          "Stripe webhook error: invoice.payment_failed missing customer"
+        );
+        return NextResponse.json(
+          { error: "Missing customer on invoice.payment_failed" },
+          { status: 500 }
+        );
+      }
+
+      const { error: supabaseError } = await supabaseAdmin
+        .from("users")
+        .update({ is_pro: false })
+        .eq("stripe_customer_id", customerId);
+
+      if (supabaseError) {
+        console.error(
+          "Stripe webhook error: Failed to update user on invoice.payment_failed",
+          supabaseError
+        );
+        return NextResponse.json(
+          { error: "Failed to update user status on invoice.payment_failed" },
+          { status: 500 }
+        );
+      }
+
+      console.log("Subscription payment failed, downgraded user:", customerId);
     } else if (event.type === "customer.subscription.deleted") {
       const subscription = event.data.object as Stripe.Subscription;
       const subscriptionId = subscription.id;
