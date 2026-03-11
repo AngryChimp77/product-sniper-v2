@@ -165,7 +165,11 @@ export default function Home() {
       : result?.reason || "No reason provided.";
 
   async function analyze() {
-    if (!user) {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+
+    if (!authUser) {
       setError("Please sign in with Google to analyze products.");
       return;
     }
@@ -186,7 +190,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ link, user_id: user.id }),
+        body: JSON.stringify({ link, user_id: authUser.id }),
       });
 
       const data = await response.json();
@@ -228,7 +232,7 @@ export default function Home() {
       const url = link;
 
       await supabase.from("analyses").insert({
-        user_id: user.id,
+        user_id: authUser.id,
         url,
         score,
         verdict: normalizedResult.verdict,

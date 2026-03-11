@@ -207,29 +207,21 @@ export async function POST(req: Request) {
           },
         });
 
-        const [userRes, monthlyRes, dailyRes] = await Promise.all([
+        const [userRes, monthlyRes] = await Promise.all([
           supabase
             .from("users")
             .select("is_pro")
             .eq("id", userId)
             .single(),
           supabase.rpc("count_user_monthly_analyses", { uid: userId }),
-          supabase.rpc("count_user_daily_analyses", { uid: userId }),
         ]);
 
         const user = userRes.data as { is_pro?: boolean } | null;
         const monthlyCount = monthlyRes.data as number | null;
         const monthlyError = monthlyRes.error;
-        const dailyCount = dailyRes.data as number | null;
-        const dailyError = dailyRes.error;
 
         console.log("MONTHLY COUNT RESULT:", monthlyCount);
         console.log("MONTHLY COUNT ERROR:", monthlyError);
-
-        console.log("DAILY LIMIT CHECK");
-        console.log("USER ID:", userId);
-        console.log("DAILY COUNT RESULT:", dailyCount);
-        console.log("DAILY COUNT ERROR:", dailyError);
         console.log("USER RESULT:", user);
 
         if (!user) {
@@ -250,13 +242,6 @@ export async function POST(req: Request) {
             typeof monthlyCount === "number" &&
             monthlyCount >= FREE_MONTHLY_LIMIT
           ) {
-            return NextResponse.json(
-              { error: "Free plan limit reached" },
-              { status: 403 }
-            );
-          }
-
-          if (typeof dailyCount === "number" && dailyCount >= 5) {
             return NextResponse.json(
               { error: "Free plan limit reached" },
               { status: 403 }
