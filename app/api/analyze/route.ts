@@ -15,7 +15,7 @@ async function normalizeUrl(url: string): Promise<string> {
         },
       });
 
-      const html = await res.text();
+      const html = (await res.text()).slice(0, 200000);
 
       const match =
         html.match(/"url":"(https:\/\/www\.aliexpress\.com\/item\/\d+\.html)"/) ||
@@ -273,7 +273,7 @@ export async function POST(req: Request) {
       // Go straight to ScraperAPI for this domain.
       console.log("Using ScraperAPI directly for AliExpress URL:", url);
       const scraperResponse = await fetch(scraperUrl);
-      html = await scraperResponse.text();
+      html = (await scraperResponse.text()).slice(0, 200000);
     } else {
       // Attempt fast direct fetch first
       try {
@@ -285,7 +285,7 @@ export async function POST(req: Request) {
           },
         });
 
-        html = await directResponse.text();
+        html = (await directResponse.text()).slice(0, 200000);
       } catch (err) {
         console.error(
           "Direct fetch failed, will fallback to ScraperAPI:",
@@ -316,7 +316,7 @@ export async function POST(req: Request) {
           url
         );
         const scraperResponse = await fetch(scraperUrl);
-        html = await scraperResponse.text();
+        html = (await scraperResponse.text()).slice(0, 200000);
       }
     }
 
