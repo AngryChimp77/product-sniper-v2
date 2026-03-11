@@ -209,8 +209,10 @@ export default function Home() {
       }
 
       if (!response.ok) {
-        throw new Error(data?.error || "Failed to analyze product");
+        console.error("API error response:", data);
+        throw new Error(JSON.stringify(data));
       }
+
       const numericScore = Number(data.score);
       const score = Number.isNaN(numericScore) ? 0 : numericScore;
 
