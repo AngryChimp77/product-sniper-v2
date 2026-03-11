@@ -386,11 +386,51 @@ export async function POST(req: Request) {
       image_url = "https:" + image_url;
     }
 
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    // Generate an analysisId and store a processing row before kicking off AI
+    const analysisId = crypto.randomUUID();
 
-    const prompt = `
+    const supabaseUrlForInsert = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKeyForInsert = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (userId && supabaseUrlForInsert && supabaseKeyForInsert) {
+      const supabaseForInsert = createClient(
+        supabaseUrlForInsert,
+        supabaseKeyForInsert,
+        {
+          global: {
+            headers: {
+              Authorization: authHeader ?? "",
+            },
+          },
+        }
+      );
+
+      const { error: insertError } = await supabaseForInsert
+        .from("analyses")
+        .insert({
+          id: analysisId,
+          user_id: userId,
+          url,
+          title,
+          image_url,
+          price,
+          status: "processing",
+        });
+
+      if (insertError) {
+        console.error(
+          "ANALYZE API ERROR: Failed to insert processing analysis row",
+          insertError
+        );
+      } else {
+        // Fire-and-forget AI analysis to update this row in the background
+        (async () => {
+          try {
+            const openai = new OpenAI({
+              apiKey: process.env.OPENAI_API_KEY,
+            });
+
+            const prompt = `
 Analyze this ecommerce product.
 
 URL: ${url}
@@ -413,30 +453,89 @@ Return ONLY valid JSON:
 "reason": "short explanation"
 }
 `;
-    // Start OpenAI request as early as possible and await it later
-    const aiPromise = openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-    });
 
-    // ... any additional processing could happen here while OpenAI runs ...
+            const completion =
+              await openai.chat.completions.create({
+                model: "gpt-4o-mini",
+                messages: [{ role: "user", content: prompt }],
+                response_format: { type: "json_object" },
+              });
 
-    const completion = await aiPromise;
-    const result = completion.choices[0].message.content;
-    const parsed = JSON.parse(result || "{}");
+            const result = completion.choices[0].message.content;
+            const parsed = JSON.parse(result || "{}");
 
-    const score = parsed.score;
-    const verdict = parsed.verdict;
-    const reason = parsed.reason;
+            const score = parsed.score;
+            const verdict = parsed.verdict;
+            const reason = parsed.reason;
 
+            const supabaseForUpdate = createClient(
+              supabaseUrlForInsert,
+              supabaseKeyForInsert,
+              {
+                global: {
+                  headers: {
+                    Authorization: authHeader ?? "",
+                  },
+                },
+              }
+            );
+
+            const { error: updateError } = await supabaseForUpdate
+              .from("analyses")
+              .update({
+                score,
+                verdict,
+                reason,
+                status: "complete",
+              })
+              .eq("id", analysisId);
+
+            if (updateError) {
+              console.error(
+                "ANALYZE API ERROR: Failed to update analysis row after AI",
+                updateError
+              );
+            }
+          } catch (aiError) {
+            console.error(
+              "ANALYZE API ERROR: Background AI analysis failed",
+              aiError
+            );
+            try {
+              const supabaseForUpdate = createClient(
+                supabaseUrlForInsert,
+                supabaseKeyForInsert,
+                {
+                  global: {
+                    headers: {
+                      Authorization: authHeader ?? "",
+                    },
+                  },
+                }
+              );
+
+              await supabaseForUpdate
+                .from("analyses")
+                .update({ status: "error" })
+                .eq("id", analysisId);
+            } catch (updateStatusError) {
+              console.error(
+                "ANALYZE API ERROR: Failed to mark analysis as error",
+                updateStatusError
+              );
+            }
+          }
+        })();
+      }
+    }
+
+    // Return a fast preview response while AI runs in the background
     return NextResponse.json({
-      score,
-      verdict,
-      reason,
+      analysisId,
       title,
-      image_url,
+      image: image_url,
       price,
+      status: "processing",
       domain,
       limitReached: false,
       monthlyUsed: monthlyUsed,
