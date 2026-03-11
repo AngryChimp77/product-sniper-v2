@@ -378,15 +378,14 @@ Return ONLY valid JSON:
 "reason": "short explanation"
 }
 `;
-
-    const completion = await openai.chat.completions.create({
+    // Start OpenAI request as early as possible and await it later
+    const aiPromise = openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [
-        { role: "user", content: prompt }
-      ],
-      response_format: { type: "json_object" }
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
     });
 
+    const completion = await aiPromise;
     const result = completion.choices[0].message.content;
     const parsed = JSON.parse(result || "{}");
 
