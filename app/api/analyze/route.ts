@@ -259,72 +259,97 @@ export async function POST(req: Request) {
     let rating = "";
     let reviews = "";
 
-    let html: string | null = null;
+    const domain = new URL(url).hostname;
 
-    // STEP 1 — Fast direct fetch with realistic headers
-    try {
-      const directResponse = await fetch(url, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-          "Accept-Language": "en-US,en;q=0.9",
-        },
-      });
+    let html = "";
 
-      html = await directResponse.text();
-    } catch (err) {
-      console.error("Direct fetch failed, will fallback to ScraperAPI:", err);
-    }
+    const scraperUrl = `http://api.scraperapi.com?api_key=${
+      process.env.SCRAPERAPI_KEY
+    }&url=${encodeURIComponent(url)}`;
 
-    // STEP 2 — Extract product data from direct HTML
-    let aliData = { title: null, image: null, price: null } as AliExpressData;
-    let ld: any = {};
-    let ogImage: string | null = null;
-
-    if (html) {
-      aliData = extractAliExpressData(html);
-      ld = extractJSONLD(html);
-      ogImage = extractOGImage(html);
-    }
-
-    title = aliData.title || (ld as any).title || "";
-    image_url =
-      aliData.image || (ld as any).image || ogImage || null;
-    price = aliData.price || (ld as any).price || "";
-
-    // STEP 3 — Detect failed extraction and fallback to ScraperAPI
-    if (!html || !title || !image_url) {
-      const scraperUrl = `http://api.scraperapi.com?api_key=${
-        process.env.SCRAPERAPI_KEY
-      }&url=${encodeURIComponent(url)}`;
-
-      console.log("ScraperAPI structured URL (fallback):", scraperUrl);
-
+    // STEP 1 — Domain-aware fetch strategy
+    if (domain.includes("aliexpress")) {
+      // AliExpress almost always blocks direct server-side requests.
+      // Go straight to ScraperAPI for this domain.
+      console.log("Using ScraperAPI directly for AliExpress URL:", url);
       const scraperResponse = await fetch(scraperUrl);
       html = await scraperResponse.text();
+    } else {
+      // Attempt fast direct fetch first
+      try {
+        const directResponse = await fetch(url, {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+          },
+        });
 
-      aliData = extractAliExpressData(html);
-      ld = extractJSONLD(html);
-      ogImage = extractOGImage(html);
+        html = await directResponse.text();
+      } catch (err) {
+        console.error(
+          "Direct fetch failed, will fallback to ScraperAPI:",
+          err
+        );
+      }
 
-      // STEP 5 — Final data merge with priority order
-      title = aliData.title || (ld as any).title || "AliExpress Product";
+      // Run extraction on direct HTML
+      let aliData = { title: null, image: null, price: null } as AliExpressData;
+      let ld: any = {};
+      let ogImage: string | null = null;
+
+      if (html) {
+        aliData = extractAliExpressData(html);
+        ld = extractJSONLD(html);
+        ogImage = extractOGImage(html);
+      }
+
+      title = aliData.title || (ld as any).title || "";
       image_url =
         aliData.image || (ld as any).image || ogImage || null;
       price = aliData.price || (ld as any).price || "";
-    } else {
-      // Ensure title has a sensible default even when ScraperAPI wasn't needed
-      if (!title) {
-        title = "AliExpress Product";
+
+      // If everything is missing, assume we were blocked and fallback
+      if (!aliData.title && !(ld as any).title && !ogImage) {
+        console.log(
+          "Direct fetch extraction failed, falling back to ScraperAPI:",
+          url
+        );
+        const scraperResponse = await fetch(scraperUrl);
+        html = await scraperResponse.text();
       }
     }
+
+    // STEP 2/4 — Unified extraction on final HTML (direct or ScraperAPI)
+    let aliDataFinal = { title: null, image: null, price: null } as AliExpressData;
+    let ldFinal: any = {};
+    let ogImageFinal: string | null = null;
+
+    if (html) {
+      aliDataFinal = extractAliExpressData(html);
+      ldFinal = extractJSONLD(html);
+      ogImageFinal = extractOGImage(html);
+    }
+
+    // STEP 5 — Final data merge with priority order
+    title =
+      aliDataFinal.title ||
+      (ldFinal as any).title ||
+      title ||
+      "AliExpress Product";
+    image_url =
+      aliDataFinal.image ||
+      (ldFinal as any).image ||
+      ogImageFinal ||
+      image_url ||
+      null;
+    price =
+      aliDataFinal.price || (ldFinal as any).price || price || "";
 
     // Normalise protocol-less images
     if (image_url && image_url.startsWith("//")) {
       image_url = "https:" + image_url;
     }
-
-    const domain = new URL(url).hostname;
 
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
