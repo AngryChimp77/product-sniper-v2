@@ -86,6 +86,31 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const eventId = event.id;
+
+    const { data: existingEvent, error: existingEventError } =
+      await supabaseAdmin
+        .from("stripe_webhook_events")
+        .select("id")
+        .eq("id", eventId)
+        .limit(1)
+        .maybeSingle();
+
+    if (existingEventError) {
+      console.error(
+        "Stripe webhook error: Failed to check idempotency in stripe_webhook_events",
+        existingEventError
+      );
+    }
+
+    if (existingEvent) {
+      console.log(
+        "Stripe webhook: duplicate event received, skipping processing:",
+        eventId
+      );
+      return NextResponse.json({ received: true });
+    }
+
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.metadata?.userId;
@@ -188,6 +213,17 @@ export async function POST(req: NextRequest) {
       }
 
       console.log("Subscription cancelled:", subscriptionId);
+    }
+
+    const { error: logEventError } = await supabaseAdmin
+      .from("stripe_webhook_events")
+      .insert({ id: eventId });
+
+    if (logEventError) {
+      console.error(
+        "Stripe webhook error: Failed to record processed event in stripe_webhook_events",
+        logEventError
+      );
     }
 
     return NextResponse.json({ received: true });
