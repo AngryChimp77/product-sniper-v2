@@ -1,19 +1,9 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { ratelimit } from "@/lib/ratelimit";
 
 const FREE_MONTHLY_LIMIT = 20;
-
-const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX_REQUESTS = 20;
-
-const ipRequestCounts = new Map<
-  string,
-  {
-    count: number;
-    resetAt: number;
-  }
->();
 
 async function normalizeUrl(url: string): Promise<string> {
   try {
@@ -170,26 +160,18 @@ function extractOGImage(html: string): string | null {
 
 export async function POST(req: Request) {
   try {
-    // Simple in-memory rate limiting by IP
     const forwardedFor = req.headers.get("x-forwarded-for") || "";
-    const realIp = forwardedFor.split(",")[0].trim() || req.headers.get("x-real-ip") || "unknown";
-    const now = Date.now();
+    const ip =
+      forwardedFor.split(",")[0].trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
 
-    const existing = ipRequestCounts.get(realIp);
-    if (!existing || now > existing.resetAt) {
-      ipRequestCounts.set(realIp, {
-        count: 1,
-        resetAt: now + RATE_LIMIT_WINDOW_MS,
-      });
-    } else {
-      if (existing.count >= RATE_LIMIT_MAX_REQUESTS) {
-        return NextResponse.json(
-          { error: "Too many requests, please try again later." },
-          { status: 429 }
-        );
-      }
-      existing.count += 1;
-      ipRequestCounts.set(realIp, existing);
+    const { success } = await ratelimit.limit(ip);
+    if (!success) {
+      return NextResponse.json(
+        { error: "Too many requests" },
+        { status: 429 }
+      );
     }
 
     const authHeader = req.headers.get("authorization");
