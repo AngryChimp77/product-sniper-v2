@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { ratelimit } from "@/lib/ratelimit";
+import { IP_LIMITER, USER_LIMITER } from "@/lib/ratelimit";
 
 const FREE_MONTHLY_LIMIT = 20;
 
@@ -160,25 +160,34 @@ function extractOGImage(html: string): string | null {
 
 export async function POST(req: Request) {
   try {
-    const forwardedFor = req.headers.get("x-forwarded-for") || "";
+    const authHeader = req.headers.get("authorization");
+    const body = await req.json();
+    let url = body.link as string;
+    url = await normalizeUrl(url);
+    const userId = body.user_id as string | undefined;
+
     const ip =
-      forwardedFor.split(",")[0].trim() ||
-      req.headers.get("x-real-ip") ||
+      req.headers.get("x-forwarded-for") ??
+      req.headers.get("x-real-ip") ??
       "unknown";
 
-    const { success } = await ratelimit.limit(ip);
-    if (!success) {
+    const { success: ipAllowed } = await IP_LIMITER.limit(ip);
+    if (!ipAllowed) {
       return NextResponse.json(
         { error: "Too many requests" },
         { status: 429 }
       );
     }
 
-    const authHeader = req.headers.get("authorization");
-    const body = await req.json();
-    let url = body.link as string;
-    url = await normalizeUrl(url);
-    const userId = body.user_id as string | undefined;
+    if (userId) {
+      const { success: userAllowed } = await USER_LIMITER.limit(userId);
+      if (!userAllowed) {
+        return NextResponse.json(
+          { error: "Too many requests" },
+          { status: 429 }
+        );
+      }
+    }
     let monthlyUsed: number | null = null;
 
     if (!url) {
