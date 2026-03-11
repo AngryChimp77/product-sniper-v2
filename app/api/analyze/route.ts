@@ -207,16 +207,21 @@ export async function POST(req: Request) {
           },
         });
 
-        const { data: user } = await supabase
-          .from("users")
-          .select("is_pro")
-          .eq("id", userId)
-          .single();
+        const [userRes, monthlyRes, dailyRes] = await Promise.all([
+          supabase
+            .from("users")
+            .select("is_pro")
+            .eq("id", userId)
+            .single(),
+          supabase.rpc("count_user_monthly_analyses", { uid: userId }),
+          supabase.rpc("count_user_daily_analyses", { uid: userId }),
+        ]);
 
-        const { data: monthlyCount, error: monthlyError } = await supabase.rpc(
-          "count_user_monthly_analyses",
-          { uid: userId }
-        );
+        const user = userRes.data as { is_pro?: boolean } | null;
+        const monthlyCount = monthlyRes.data as number | null;
+        const monthlyError = monthlyRes.error;
+        const dailyCount = dailyRes.data as number | null;
+        const dailyError = dailyRes.error;
 
         console.log("MONTHLY COUNT RESULT:", monthlyCount);
         console.log("MONTHLY COUNT ERROR:", monthlyError);
@@ -225,18 +230,13 @@ export async function POST(req: Request) {
           monthlyUsed = monthlyCount;
         }
 
-        if (!user?.is_pro && monthlyCount >= FREE_MONTHLY_LIMIT) {
+        if (!user?.is_pro && typeof monthlyCount === "number" && monthlyCount >= FREE_MONTHLY_LIMIT) {
           return NextResponse.json({
             limitReached: true,
             monthlyUsed: monthlyCount,
             monthlyLimit: FREE_MONTHLY_LIMIT,
           });
         }
-
-        const { data: dailyCount, error: dailyError } = await supabase.rpc(
-          "count_user_daily_analyses",
-          { uid: userId }
-        );
 
         console.log("DAILY LIMIT CHECK");
         console.log("USER ID:", userId);
