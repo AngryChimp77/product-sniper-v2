@@ -268,12 +268,47 @@ export async function POST(req: Request) {
     }&url=${encodeURIComponent(url)}`;
 
     // STEP 1 — Domain-aware fetch strategy
-    if (domain.includes("aliexpress")) {
-      // AliExpress almost always blocks direct server-side requests.
-      // Go straight to ScraperAPI for this domain.
-      console.log("Using ScraperAPI directly for AliExpress URL:", url);
-      const scraperResponse = await fetch(scraperUrl);
-      html = (await scraperResponse.text()).slice(0, 200000);
+    if (domain.includes("aliexpress.com")) {
+      // Fast AliExpress extraction without ScraperAPI when possible.
+      const productId = extractAliExpressProductId(url);
+      let aliData = { title: null, image: null, price: null } as AliExpressData;
+
+      if (productId) {
+        const aliUrl = `https://www.aliexpress.com/item/${productId}.html?ajax=true`;
+        try {
+          console.log("Fetching AliExpress AJAX product page:", aliUrl);
+          const aliRes = await fetch(aliUrl, {
+            headers: {
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+              "Accept-Language": "en-US,en;q=0.9",
+            },
+          });
+          html = (await aliRes.text()).slice(0, 200000);
+
+          aliData = extractAliExpressData(html);
+        } catch (err) {
+          console.error(
+            "AliExpress AJAX fetch failed, will fallback to ScraperAPI:",
+            err
+          );
+        }
+      }
+
+      // If AJAX extraction failed, fallback to ScraperAPI for AliExpress
+      if (!aliData.title || !aliData.image) {
+        console.log(
+          "AliExpress AJAX extraction incomplete, falling back to ScraperAPI:",
+          url
+        );
+        const scraperResponse = await fetch(scraperUrl);
+        html = (await scraperResponse.text()).slice(0, 200000);
+        aliData = extractAliExpressData(html);
+      }
+
+      title = aliData.title || title;
+      image_url = aliData.image || image_url;
+      price = aliData.price || price;
     } else {
       // Attempt fast direct fetch first
       try {
