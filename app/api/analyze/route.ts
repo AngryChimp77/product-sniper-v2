@@ -226,28 +226,42 @@ export async function POST(req: Request) {
         console.log("MONTHLY COUNT RESULT:", monthlyCount);
         console.log("MONTHLY COUNT ERROR:", monthlyError);
 
-        if (typeof monthlyCount === "number") {
-          monthlyUsed = monthlyCount;
-        }
-
-        if (!user?.is_pro && typeof monthlyCount === "number" && monthlyCount >= FREE_MONTHLY_LIMIT) {
-          return NextResponse.json({
-            limitReached: true,
-            monthlyUsed: monthlyCount,
-            monthlyLimit: FREE_MONTHLY_LIMIT,
-          });
-        }
-
         console.log("DAILY LIMIT CHECK");
         console.log("USER ID:", userId);
         console.log("DAILY COUNT RESULT:", dailyCount);
         console.log("DAILY COUNT ERROR:", dailyError);
+        console.log("USER RESULT:", user);
 
-        if (!user?.is_pro && typeof dailyCount === "number" && dailyCount >= 5) {
+        if (!user) {
           return NextResponse.json(
-            { error: "Free plan limit reached" },
-            { status: 403 }
+            { error: "User not found" },
+            { status: 401 }
           );
+        }
+
+        const isPro = user.is_pro === true;
+
+        if (typeof monthlyCount === "number") {
+          monthlyUsed = monthlyCount;
+        }
+
+        if (!isPro) {
+          if (
+            typeof monthlyCount === "number" &&
+            monthlyCount >= FREE_MONTHLY_LIMIT
+          ) {
+            return NextResponse.json(
+              { error: "Free plan limit reached" },
+              { status: 403 }
+            );
+          }
+
+          if (typeof dailyCount === "number" && dailyCount >= 5) {
+            return NextResponse.json(
+              { error: "Free plan limit reached" },
+              { status: 403 }
+            );
+          }
         }
       }
     }
