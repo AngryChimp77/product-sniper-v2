@@ -270,7 +270,7 @@ export async function POST(req: Request) {
     }&url=${encodeURIComponent(url)}`;
 
     // STEP 1 — Domain-aware fetch strategy
-    if (domain.includes("aliexpress.com")) {
+    if (domain.includes("aliexpress")) {
       // Fast AliExpress extraction without ScraperAPI when possible.
       const productId = extractAliExpressProductId(url);
       let aliData = { title: null, image: null, price: null } as AliExpressData;
