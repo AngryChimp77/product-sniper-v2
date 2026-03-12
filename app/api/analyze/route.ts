@@ -271,8 +271,6 @@ export async function POST(req: Request) {
     let rating = "";
     let reviews = "";
 
-    const domain = new URL(url).hostname;
-
     let html = "";
 
     const scraperUrl = `http://api.scraperapi.com?api_key=${
