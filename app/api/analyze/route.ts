@@ -273,6 +273,10 @@ export async function POST(req: Request) {
 
     let url = await normalizeUrl(urlInput);
 
+    // Strip query parameters to normalize AliExpress and similar product URLs
+    const cleanUrl = url.split("?")[0];
+    url = cleanUrl;
+
     console.log("STEP 2: url:", url);
     console.log("STEP 3: userId:", userId);
 
