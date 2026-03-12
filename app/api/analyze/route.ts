@@ -16,7 +16,10 @@ async function normalizeUrl(url: string): Promise<string> {
       const res = await fetch(url, {
         headers: {
           "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml",
+          "Accept-Language": "en-US,en;q=0.9",
+          Referer: "https://www.aliexpress.com/",
         },
       });
 
@@ -370,8 +373,10 @@ export async function POST(req: Request) {
           const aliRes = await fetch(aliUrl, {
             headers: {
               "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+              Accept: "text/html,application/xhtml+xml",
               "Accept-Language": "en-US,en;q=0.9",
+              Referer: "https://www.aliexpress.com/",
             },
           });
           html = (await aliRes.text()).slice(0, 200000);
