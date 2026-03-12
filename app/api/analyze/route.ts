@@ -61,36 +61,122 @@ function extractAliExpressData(html: string): AliExpressData {
   };
 
   try {
-    const match = html.match(/window\.runParams\s*=\s*({[\s\S]*?});/);
-    if (!match || !match[1]) {
-      return result;
-    }
+    // 1) Try window.runParams
+    const runParamsMatch = html.match(
+      /window\.runParams\s*=\s*({[\s\S]*?});/
+    );
+    if (runParamsMatch && runParamsMatch[1]) {
+      try {
+        const json = JSON.parse(runParamsMatch[1]);
+        const data = json?.data;
 
-    const json = JSON.parse(match[1]);
-    const data = json?.data;
+        const title = data?.titleModule?.subject;
+        if (title && typeof title === "string") {
+          result.title = title;
+        }
 
-    const title = data?.titleModule?.subject;
-    if (title && typeof title === "string") {
-      result.title = title;
-    }
+        const imageList = data?.imageModule?.imagePathList;
+        if (Array.isArray(imageList) && imageList.length > 0 && imageList[0]) {
+          let img = String(imageList[0]);
+          if (img.startsWith("//")) {
+            img = `https:${img}`;
+          }
+          result.image = img;
+        }
 
-    const imageList = data?.imageModule?.imagePathList;
-    if (Array.isArray(imageList) && imageList.length > 0 && imageList[0]) {
-      let img = String(imageList[0]);
-      if (img.startsWith("//")) {
-        img = `https:${img}`;
+        const priceModule = data?.priceModule;
+        const activityPrice = priceModule?.formatedActivityPrice;
+        const basePrice = priceModule?.formatedPrice;
+
+        if (activityPrice && typeof activityPrice === "string") {
+          result.price = activityPrice;
+        } else if (basePrice && typeof basePrice === "string") {
+          result.price = basePrice;
+        }
+      } catch (err) {
+        console.log("AliExtract runParams parse error:", err);
       }
-      result.image = img;
     }
 
-    const priceModule = data?.priceModule;
-    const activityPrice = priceModule?.formatedActivityPrice;
-    const basePrice = priceModule?.formatedPrice;
+    // 2) If still missing, try window.__INIT_DATA__
+    if (!result.title || !result.image || !result.price) {
+      const initMatch = html.match(
+        /window\.__INIT_DATA__\s*=\s*({[\s\S]*?});/
+      );
+      if (initMatch && initMatch[1]) {
+        try {
+          const json = JSON.parse(initMatch[1]);
+          const data = json?.data || json?.store || json;
 
-    if (activityPrice && typeof activityPrice === "string") {
-      result.price = activityPrice;
-    } else if (basePrice && typeof basePrice === "string") {
-      result.price = basePrice;
+          const title =
+            data?.titleModule?.subject ||
+            data?.productTitle ||
+            data?.pageModule?.pageTitle;
+          if (!result.title && title && typeof title === "string") {
+            result.title = title;
+          }
+
+          const imageList =
+            data?.imageModule?.imagePathList ||
+            data?.imageModule?.imagePaths ||
+            data?.images;
+          if (
+            !result.image &&
+            Array.isArray(imageList) &&
+            imageList.length > 0 &&
+            imageList[0]
+          ) {
+            let img = String(imageList[0]);
+            if (img.startsWith("//")) {
+              img = `https:${img}`;
+            }
+            result.image = img;
+          }
+
+          const priceModule = data?.priceModule || data?.price;
+          const activityPrice =
+            priceModule?.formatedActivityPrice || priceModule?.promoPrice;
+          const basePrice =
+            priceModule?.formatedPrice ||
+            priceModule?.price ||
+            priceModule?.salePrice;
+
+          if (!result.price) {
+            if (activityPrice && typeof activityPrice === "string") {
+              result.price = activityPrice;
+            } else if (basePrice && typeof basePrice === "string") {
+              result.price = basePrice;
+            }
+          }
+        } catch (err) {
+          console.log("AliExtract __INIT_DATA__ parse error:", err);
+        }
+      }
+    }
+
+    // 3) Fallback to JSON-LD if we still don't have core fields
+    if (!result.title || !result.image || !result.price) {
+      try {
+        const ld = extractJSONLD(html) as any;
+
+        if (!result.title && ld?.title) {
+          result.title = ld.title;
+        }
+
+        if (!result.image && ld?.image) {
+          let img = String(ld.image);
+          if (img.startsWith("//")) {
+            img = `https:${img}`;
+          }
+          result.image = img;
+        }
+
+        if (!result.price && ld?.price) {
+          result.price = String(ld.price);
+        }
+      } catch (err) {
+        console.log("AliExtract JSON-LD fallback error:", err);
+      }
     }
   } catch (err) {
     console.log("AliExtract error:", err);
