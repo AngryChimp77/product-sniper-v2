@@ -5,6 +5,11 @@ import { IP_LIMITER, USER_LIMITER } from "@/lib/ratelimit";
 
 const FREE_MONTHLY_LIMIT = 20;
 
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 async function normalizeUrl(url: string): Promise<string> {
   try {
     if (url.includes("aliexpress")) {
@@ -208,58 +213,45 @@ export async function POST(req: Request) {
     let monthlyUsed: number | null = null;
 
     if (userId) {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      const [userRes, monthlyRes] = await Promise.all([
+        supabaseAdmin
+          .from("users")
+          .select("is_pro")
+          .eq("id", userId)
+          .single(),
+        supabaseAdmin.rpc("count_user_monthly_analyses", { uid: userId }),
+      ]);
 
-      if (supabaseUrl && supabaseKey) {
-        const supabase = createClient(supabaseUrl, supabaseKey, {
-          global: {
-            headers: {
-              Authorization: authHeader ?? "",
-            },
-          },
-        });
+      const user = userRes.data as { is_pro?: boolean } | null;
+      const monthlyCount = monthlyRes.data as number | null;
+      const monthlyError = monthlyRes.error;
 
-        const [userRes, monthlyRes] = await Promise.all([
-          supabase
-            .from("users")
-            .select("is_pro")
-            .eq("id", userId)
-            .single(),
-          supabase.rpc("count_user_monthly_analyses", { uid: userId }),
-        ]);
+      console.log("MONTHLY COUNT RESULT:", monthlyCount);
+      console.log("MONTHLY COUNT ERROR:", monthlyError);
+      console.log("USER RESULT:", user);
 
-        const user = userRes.data as { is_pro?: boolean } | null;
-        const monthlyCount = monthlyRes.data as number | null;
-        const monthlyError = monthlyRes.error;
+      if (!user) {
+        return NextResponse.json(
+          { error: "User not found" },
+          { status: 401 }
+        );
+      }
 
-        console.log("MONTHLY COUNT RESULT:", monthlyCount);
-        console.log("MONTHLY COUNT ERROR:", monthlyError);
-        console.log("USER RESULT:", user);
+      const isPro = user.is_pro === true;
 
-        if (!user) {
+      if (typeof monthlyCount === "number") {
+        monthlyUsed = monthlyCount;
+      }
+
+      if (!isPro) {
+        if (
+          typeof monthlyCount === "number" &&
+          monthlyCount >= FREE_MONTHLY_LIMIT
+        ) {
           return NextResponse.json(
-            { error: "User not found" },
-            { status: 401 }
+            { error: "Free plan limit reached" },
+            { status: 403 }
           );
-        }
-
-        const isPro = user.is_pro === true;
-
-        if (typeof monthlyCount === "number") {
-          monthlyUsed = monthlyCount;
-        }
-
-        if (!isPro) {
-          if (
-            typeof monthlyCount === "number" &&
-            monthlyCount >= FREE_MONTHLY_LIMIT
-          ) {
-            return NextResponse.json(
-              { error: "Free plan limit reached" },
-              { status: 403 }
-            );
-          }
         }
       }
     }
@@ -399,23 +391,8 @@ export async function POST(req: Request) {
     // Generate an analysisId and store a processing row before kicking off AI
     const analysisId = crypto.randomUUID();
 
-    const supabaseUrlForInsert = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKeyForInsert = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (userId && supabaseUrlForInsert && supabaseKeyForInsert) {
-      const supabaseForInsert = createClient(
-        supabaseUrlForInsert,
-        supabaseKeyForInsert,
-        {
-          global: {
-            headers: {
-              Authorization: authHeader ?? "",
-            },
-          },
-        }
-      );
-
-      const { error: insertError } = await supabaseForInsert
+    if (userId) {
+      const { error: insertError } = await supabaseAdmin
         .from("analyses")
         .insert({
           id: analysisId,
@@ -478,19 +455,7 @@ Return ONLY valid JSON:
             const verdict = parsed.verdict;
             const reason = parsed.reason;
 
-            const supabaseForUpdate = createClient(
-              supabaseUrlForInsert,
-              supabaseKeyForInsert,
-              {
-                global: {
-                  headers: {
-                    Authorization: authHeader ?? "",
-                  },
-                },
-              }
-            );
-
-            const { error: updateError } = await supabaseForUpdate
+            const { error: updateError } = await supabaseAdmin
               .from("analyses")
               .update({
                 score,
@@ -512,19 +477,7 @@ Return ONLY valid JSON:
               aiError
             );
             try {
-              const supabaseForUpdate = createClient(
-                supabaseUrlForInsert,
-                supabaseKeyForInsert,
-                {
-                  global: {
-                    headers: {
-                      Authorization: authHeader ?? "",
-                    },
-                  },
-                }
-              );
-
-              await supabaseForUpdate
+              await supabaseAdmin
                 .from("analyses")
                 .update({ status: "error" })
                 .eq("id", analysisId);
