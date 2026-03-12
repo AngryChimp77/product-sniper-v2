@@ -162,9 +162,26 @@ export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get("authorization");
     const body = await req.json();
-    let url = body.link as string;
-    url = await normalizeUrl(url);
+
+    console.log("STEP 1: request received");
+
     const userId = body.user_id as string | undefined;
+    const urlInput = body.link as string | undefined;
+
+    if (!urlInput) {
+      return NextResponse.json(
+        { error: "Missing product URL" },
+        { status: 400 }
+      );
+    }
+
+    let url = await normalizeUrl(urlInput);
+
+    console.log("STEP 2: url:", url);
+    console.log("STEP 3: userId:", userId);
+
+    const domain = new URL(url).hostname;
+    console.log("STEP 4: domain:", domain);
 
     const ip =
       req.headers.get("x-forwarded-for") ??
@@ -189,10 +206,6 @@ export async function POST(req: Request) {
       }
     }
     let monthlyUsed: number | null = null;
-
-    if (!url) {
-      return NextResponse.json({ error: "No link provided" }, { status: 400 });
-    }
 
     if (userId) {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
