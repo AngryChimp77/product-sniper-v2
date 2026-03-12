@@ -21,6 +21,8 @@ async function normalizeUrl(url: string): Promise<string> {
       });
 
       const html = (await res.text()).slice(0, 200000);
+      console.log("NORMALIZE AliExpress HTML PREVIEW:");
+      console.log(html.slice(0, 500));
 
       const match =
         html.match(/"url":"(https:\/\/www\.aliexpress\.com\/item\/\d+\.html)"/) ||
@@ -373,6 +375,8 @@ export async function POST(req: Request) {
             },
           });
           html = (await aliRes.text()).slice(0, 200000);
+          console.log("AliExpress AJAX HTML PREVIEW:");
+          console.log(html.slice(0, 500));
 
           aliData = extractAliExpressData(html);
         } catch (err) {
@@ -391,6 +395,8 @@ export async function POST(req: Request) {
         );
         const scraperResponse = await fetch(scraperUrl);
         html = (await scraperResponse.text()).slice(0, 200000);
+        console.log("AliExpress ScraperAPI HTML PREVIEW:");
+        console.log(html.slice(0, 500));
         aliData = extractAliExpressData(html);
       }
 
@@ -409,6 +415,8 @@ export async function POST(req: Request) {
         });
 
         html = (await directResponse.text()).slice(0, 200000);
+        console.log("Direct fetch HTML PREVIEW:");
+        console.log(html.slice(0, 500));
       } catch (err) {
         console.error(
           "Direct fetch failed, will fallback to ScraperAPI:",
@@ -440,6 +448,8 @@ export async function POST(req: Request) {
         );
         const scraperResponse = await fetch(scraperUrl);
         html = (await scraperResponse.text()).slice(0, 200000);
+        console.log("ScraperAPI HTML PREVIEW (fallback):");
+        console.log(html.slice(0, 500));
       }
     }
 
