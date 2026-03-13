@@ -16,16 +16,11 @@ async function normalizeUrl(url: string): Promise<string> {
       const res = await fetch(url, {
         headers: {
           "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
-          Accept: "text/html,application/xhtml+xml",
-          "Accept-Language": "en-US,en;q=0.9",
-          Referer: "https://www.aliexpress.com/",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
         },
       });
 
       const html = (await res.text()).slice(0, 200000);
-      console.log("NORMALIZE AliExpress HTML PREVIEW:");
-      console.log(html.slice(0, 500));
 
       const match =
         html.match(/"url":"(https:\/\/www\.aliexpress\.com\/item\/\d+\.html)"/) ||
@@ -273,16 +268,8 @@ export async function POST(req: Request) {
 
     let url = await normalizeUrl(urlInput);
 
-    // Strip query parameters to normalize AliExpress and similar product URLs
-    const cleanUrl = url.split("?")[0];
-    url = cleanUrl;
-
-    const productId = extractAliExpressProductId(url);
-
     console.log("STEP 2: url:", url);
-    console.log("STEP 2b: Normalized URL:", url);
     console.log("STEP 3: userId:", userId);
-    console.log("AliExpress productId:", productId);
 
     const domain = new URL(url).hostname;
     console.log("STEP 4: domain:", domain);
@@ -369,126 +356,47 @@ export async function POST(req: Request) {
     }&url=${encodeURIComponent(url)}`;
 
     // STEP 1 — Domain-aware fetch strategy
-    if (domain.includes("aliexpress") && url.includes("/item/")) {
-      // Prefer the AliExpress product detail API when possible.
-      let apiSuccess = false;
+    if (domain.includes("aliexpress")) {
+      // Fast AliExpress extraction without ScraperAPI when possible.
+      const productId = extractAliExpressProductId(url);
+      let aliData = { title: null, image: null, price: null } as AliExpressData;
 
       if (productId) {
+        const aliUrl = `https://www.aliexpress.com/item/${productId}.html?ajax=true`;
         try {
-          const apiUrl = `https://acs.aliexpress.com/h5/mtop.aliexpress.detail.getdetail/1.0/?appKey=12574478&t=${Date.now()}&sign=test&data=${encodeURIComponent(
-            JSON.stringify({ productId })
-          )}`;
-
-          console.log("Fetching AliExpress product API:", apiUrl);
-          const apiRes = await fetch(apiUrl);
-          const apiJson = await apiRes.json();
-
-          const root =
-            apiJson?.data?.data?.rootFields ||
-            apiJson?.data?.rootFields ||
-            apiJson?.rootFields;
-
-          console.log("AliExpress rootFields:", root);
-
-          if (root) {
-            const apiTitle = root?.subject as string | undefined;
-            const apiImageList = root?.imageModule?.imagePathList as
-              | string[]
-              | undefined;
-            const apiPriceValue =
-              root?.priceModule?.minAmount?.value ??
-              root?.priceModule?.formatedActivityPrice;
-
-            if (apiTitle) {
-              title = apiTitle;
-            }
-
-            if (Array.isArray(apiImageList) && apiImageList.length > 0) {
-              let img = String(apiImageList[0]);
-              if (img.startsWith("//")) {
-                img = `https:${img}`;
-              }
-              image_url = img;
-            }
-
-            if (apiPriceValue !== undefined && apiPriceValue !== null) {
-              price = String(apiPriceValue);
-            }
-          }
-
-          if (title || image_url || price) {
-            apiSuccess = true;
-          }
-
-          console.log("AliExpress API extraction:", {
-            title,
-            image_url,
-            price,
+          console.log("Fetching AliExpress AJAX product page:", aliUrl);
+          const aliRes = await fetch(aliUrl, {
+            headers: {
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+              "Accept-Language": "en-US,en;q=0.9",
+            },
           });
+          html = (await aliRes.text()).slice(0, 200000);
+
+          aliData = extractAliExpressData(html);
         } catch (err) {
           console.error(
-            "AliExpress API extraction failed, will fallback to HTML scraping:",
+            "AliExpress AJAX fetch failed, will fallback to ScraperAPI:",
             err
           );
         }
       }
 
-      // If API extraction failed or no productId, fallback to HTML strategies
-      if (!apiSuccess) {
+      // If AJAX extraction failed, fallback to ScraperAPI for AliExpress
+      if (!aliData.title || !aliData.image) {
         console.log(
-          "AliExpress API not available or incomplete, using HTML strategies:",
+          "AliExpress AJAX extraction incomplete, falling back to ScraperAPI:",
           url
         );
-
-        let aliData = {
-          title: null,
-          image: null,
-          price: null,
-        } as AliExpressData;
-
-        if (productId) {
-          const aliUrl = `https://www.aliexpress.com/item/${productId}.html?ajax=true`;
-          try {
-            console.log("Fetching AliExpress AJAX product page:", aliUrl);
-            const aliRes = await fetch(aliUrl, {
-              headers: {
-                "User-Agent":
-                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
-                Accept: "text/html,application/xhtml+xml",
-                "Accept-Language": "en-US,en;q=0.9",
-                Referer: "https://www.aliexpress.com/",
-              },
-            });
-            html = (await aliRes.text()).slice(0, 200000);
-            console.log("AliExpress AJAX HTML PREVIEW:");
-            console.log(html.slice(0, 500));
-
-            aliData = extractAliExpressData(html);
-          } catch (err) {
-            console.error(
-              "AliExpress AJAX fetch failed, will fallback to ScraperAPI:",
-              err
-            );
-          }
-        }
-
-        // If AJAX extraction failed, fallback to ScraperAPI for AliExpress
-        if (!aliData.title || !aliData.image) {
-          console.log(
-            "AliExpress AJAX extraction incomplete, falling back to ScraperAPI:",
-            url
-          );
-          const scraperResponse = await fetch(scraperUrl);
-          html = (await scraperResponse.text()).slice(0, 200000);
-          console.log("AliExpress ScraperAPI HTML PREVIEW:");
-          console.log(html.slice(0, 500));
-          aliData = extractAliExpressData(html);
-        }
-
-        title = aliData.title || title;
-        image_url = aliData.image || image_url;
-        price = aliData.price || price;
+        const scraperResponse = await fetch(scraperUrl);
+        html = (await scraperResponse.text()).slice(0, 200000);
+        aliData = extractAliExpressData(html);
       }
+
+      title = aliData.title || title;
+      image_url = aliData.image || image_url;
+      price = aliData.price || price;
     } else {
       // Attempt fast direct fetch first
       try {
@@ -501,8 +409,6 @@ export async function POST(req: Request) {
         });
 
         html = (await directResponse.text()).slice(0, 200000);
-        console.log("Direct fetch HTML PREVIEW:");
-        console.log(html.slice(0, 500));
       } catch (err) {
         console.error(
           "Direct fetch failed, will fallback to ScraperAPI:",
@@ -534,8 +440,6 @@ export async function POST(req: Request) {
         );
         const scraperResponse = await fetch(scraperUrl);
         html = (await scraperResponse.text()).slice(0, 200000);
-        console.log("ScraperAPI HTML PREVIEW (fallback):");
-        console.log(html.slice(0, 500));
       }
     }
 
@@ -570,7 +474,7 @@ export async function POST(req: Request) {
       image_url = "https:" + image_url;
     }
 
-    // Generate an analysisId and store a row before kicking off AI
+    // Generate an analysisId and store a processing row before kicking off AI
     const analysisId = crypto.randomUUID();
 
     if (userId) {
@@ -581,16 +485,16 @@ export async function POST(req: Request) {
           user_id: userId,
           url,
           title,
-          image: image_url,
+          image_url,
           price,
-          score: null,
-          verdict: null,
-          reason: null,
           status: "processing",
         });
 
       if (insertError) {
-        console.error("Insert analysis error:", insertError);
+        console.error(
+          "ANALYZE API ERROR: Failed to insert processing analysis row",
+          insertError
+        );
       } else {
         // Fire-and-forget AI analysis to update this row in the background
         (async () => {
@@ -630,12 +534,25 @@ Return ONLY valid JSON:
                 response_format: { type: "json_object" },
               });
 
+            console.log("OpenAI raw response:", completion);
+
             const result = completion.choices[0].message.content;
             const parsed = JSON.parse(result || "{}");
+
+            console.log("Parsed AI result:", parsed);
 
             const score = parsed.score;
             const verdict = parsed.verdict;
             const reason = parsed.reason;
+
+            console.log("Final result:", {
+              score,
+              verdict,
+              reason,
+              title,
+              image_url,
+              price,
+            });
 
             const { error: updateError } = await supabaseAdmin
               .from("analyses")
@@ -658,6 +575,17 @@ Return ONLY valid JSON:
               "ANALYZE API ERROR: Background AI analysis failed",
               aiError
             );
+            try {
+              await supabaseAdmin
+                .from("analyses")
+                .update({ status: "error" })
+                .eq("id", analysisId);
+            } catch (updateStatusError) {
+              console.error(
+                "ANALYZE API ERROR: Failed to mark analysis as error",
+                updateStatusError
+              );
+            }
           }
         })();
       }
