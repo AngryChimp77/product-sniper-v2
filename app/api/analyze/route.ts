@@ -504,16 +504,16 @@ export async function POST(req: Request) {
           user_id: userId,
           url,
           title,
-          image_url,
+          image: image_url,
           price,
+          score: null,
+          verdict: null,
+          reason: null,
           status: "processing",
         });
 
       if (insertError) {
-        console.error(
-          "Insert analysis error:",
-          insertError
-        );
+        console.error("Insert analysis error:", insertError);
       } else {
         // Fire-and-forget AI analysis to update this row in the background
         (async () => {
@@ -566,6 +566,7 @@ Return ONLY valid JSON:
                 score,
                 verdict,
                 reason,
+                status: "complete",
               })
               .eq("id", analysisId);
 
