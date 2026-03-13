@@ -365,7 +365,7 @@ export async function POST(req: Request) {
     }&url=${encodeURIComponent(url)}`;
 
     // STEP 1 — Domain-aware fetch strategy
-    if (domain.includes("aliexpress")) {
+    if (domain.includes("aliexpress") && url.includes("/item/")) {
       // Prefer the AliExpress product detail API when possible.
       const productId = extractAliExpressProductId(url);
       let apiSuccess = false;
