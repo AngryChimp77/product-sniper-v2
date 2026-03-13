@@ -383,29 +383,37 @@ export async function POST(req: Request) {
           const apiRes = await fetch(apiUrl);
           const apiJson = await apiRes.json();
 
-          const root = apiJson?.data?.data?.rootFields;
-          const apiTitle = root?.subject as string | undefined;
-          const apiPrice =
-            (root?.priceModule?.minAmount?.value as string | number | undefined) ??
-            (root?.price as string | number | undefined);
-          const apiImageList = root?.imageModule?.imagePathList as
-            | string[]
-            | undefined;
+          const root =
+            apiJson?.data?.data?.rootFields ||
+            apiJson?.data?.rootFields ||
+            apiJson?.rootFields;
 
-          if (apiTitle) {
-            title = apiTitle;
-          }
+          console.log("AliExpress rootFields:", root);
 
-          if (Array.isArray(apiImageList) && apiImageList.length > 0) {
-            let img = String(apiImageList[0]);
-            if (img.startsWith("//")) {
-              img = `https:${img}`;
+          if (root) {
+            const apiTitle = root?.subject as string | undefined;
+            const apiImageList = root?.imageModule?.imagePathList as
+              | string[]
+              | undefined;
+            const apiPriceValue =
+              root?.priceModule?.minAmount?.value ??
+              root?.priceModule?.formatedActivityPrice;
+
+            if (apiTitle) {
+              title = apiTitle;
             }
-            image_url = img;
-          }
 
-          if (apiPrice !== undefined && apiPrice !== null) {
-            price = String(apiPrice);
+            if (Array.isArray(apiImageList) && apiImageList.length > 0) {
+              let img = String(apiImageList[0]);
+              if (img.startsWith("//")) {
+                img = `https:${img}`;
+              }
+              image_url = img;
+            }
+
+            if (apiPriceValue !== undefined && apiPriceValue !== null) {
+              price = String(apiPriceValue);
+            }
           }
 
           if (title || image_url || price) {
