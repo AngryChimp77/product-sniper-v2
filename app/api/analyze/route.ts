@@ -366,52 +366,118 @@ export async function POST(req: Request) {
 
     // STEP 1 — Domain-aware fetch strategy
     if (domain.includes("aliexpress")) {
-      // Fast AliExpress extraction without ScraperAPI when possible.
+      // Prefer the AliExpress product detail API when possible.
       const productId = extractAliExpressProductId(url);
-      let aliData = { title: null, image: null, price: null } as AliExpressData;
+      let apiSuccess = false;
 
       if (productId) {
-        const aliUrl = `https://www.aliexpress.com/item/${productId}.html?ajax=true`;
         try {
-          console.log("Fetching AliExpress AJAX product page:", aliUrl);
-          const aliRes = await fetch(aliUrl, {
-            headers: {
-              "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
-              Accept: "text/html,application/xhtml+xml",
-              "Accept-Language": "en-US,en;q=0.9",
-              Referer: "https://www.aliexpress.com/",
-            },
-          });
-          html = (await aliRes.text()).slice(0, 200000);
-          console.log("AliExpress AJAX HTML PREVIEW:");
-          console.log(html.slice(0, 500));
+          const apiUrl = `https://acs.aliexpress.com/h5/mtop.aliexpress.detail.getdetail/1.0/?appKey=12574478&t=${Date.now()}&sign=test&data=${encodeURIComponent(
+            JSON.stringify({ productId })
+          )}`;
 
-          aliData = extractAliExpressData(html);
+          console.log("Fetching AliExpress product API:", apiUrl);
+          const apiRes = await fetch(apiUrl);
+          const apiJson = await apiRes.json();
+
+          const root = apiJson?.data?.data?.rootFields;
+          const apiTitle = root?.subject as string | undefined;
+          const apiPrice =
+            (root?.priceModule?.minAmount?.value as string | number | undefined) ??
+            (root?.price as string | number | undefined);
+          const apiImageList = root?.imageModule?.imagePathList as
+            | string[]
+            | undefined;
+
+          if (apiTitle) {
+            title = apiTitle;
+          }
+
+          if (Array.isArray(apiImageList) && apiImageList.length > 0) {
+            let img = String(apiImageList[0]);
+            if (img.startsWith("//")) {
+              img = `https:${img}`;
+            }
+            image_url = img;
+          }
+
+          if (apiPrice !== undefined && apiPrice !== null) {
+            price = String(apiPrice);
+          }
+
+          if (title || image_url || price) {
+            apiSuccess = true;
+          }
+
+          console.log("AliExpress API extraction:", {
+            title,
+            image_url,
+            price,
+          });
         } catch (err) {
           console.error(
-            "AliExpress AJAX fetch failed, will fallback to ScraperAPI:",
+            "AliExpress API extraction failed, will fallback to HTML scraping:",
             err
           );
         }
       }
 
-      // If AJAX extraction failed, fallback to ScraperAPI for AliExpress
-      if (!aliData.title || !aliData.image) {
+      // If API extraction failed or no productId, fallback to HTML strategies
+      if (!apiSuccess) {
         console.log(
-          "AliExpress AJAX extraction incomplete, falling back to ScraperAPI:",
+          "AliExpress API not available or incomplete, using HTML strategies:",
           url
         );
-        const scraperResponse = await fetch(scraperUrl);
-        html = (await scraperResponse.text()).slice(0, 200000);
-        console.log("AliExpress ScraperAPI HTML PREVIEW:");
-        console.log(html.slice(0, 500));
-        aliData = extractAliExpressData(html);
-      }
 
-      title = aliData.title || title;
-      image_url = aliData.image || image_url;
-      price = aliData.price || price;
+        let aliData = {
+          title: null,
+          image: null,
+          price: null,
+        } as AliExpressData;
+
+        if (productId) {
+          const aliUrl = `https://www.aliexpress.com/item/${productId}.html?ajax=true`;
+          try {
+            console.log("Fetching AliExpress AJAX product page:", aliUrl);
+            const aliRes = await fetch(aliUrl, {
+              headers: {
+                "User-Agent":
+                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+                Accept: "text/html,application/xhtml+xml",
+                "Accept-Language": "en-US,en;q=0.9",
+                Referer: "https://www.aliexpress.com/",
+              },
+            });
+            html = (await aliRes.text()).slice(0, 200000);
+            console.log("AliExpress AJAX HTML PREVIEW:");
+            console.log(html.slice(0, 500));
+
+            aliData = extractAliExpressData(html);
+          } catch (err) {
+            console.error(
+              "AliExpress AJAX fetch failed, will fallback to ScraperAPI:",
+              err
+            );
+          }
+        }
+
+        // If AJAX extraction failed, fallback to ScraperAPI for AliExpress
+        if (!aliData.title || !aliData.image) {
+          console.log(
+            "AliExpress AJAX extraction incomplete, falling back to ScraperAPI:",
+            url
+          );
+          const scraperResponse = await fetch(scraperUrl);
+          html = (await scraperResponse.text()).slice(0, 200000);
+          console.log("AliExpress ScraperAPI HTML PREVIEW:");
+          console.log(html.slice(0, 500));
+          aliData = extractAliExpressData(html);
+        }
+
+        title = aliData.title || title;
+        image_url = aliData.image || image_url;
+        price = aliData.price || price;
+      }
     } else {
       // Attempt fast direct fetch first
       try {
