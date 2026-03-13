@@ -485,7 +485,7 @@ export async function POST(req: Request) {
           user_id: userId,
           url,
           title,
-          image: image_url,
+          image_url,
           price,
         });
 
