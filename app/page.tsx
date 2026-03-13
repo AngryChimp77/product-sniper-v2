@@ -195,6 +195,8 @@ export default function Home() {
 
       const data = await response.json();
 
+      console.log("Frontend received API response:", data);
+
       if (data.limitReached) {
         window.location.href = "/upgrade";
         return;
@@ -219,6 +221,13 @@ export default function Home() {
 
       const numericScore = Number(data.score);
       const score = Number.isNaN(numericScore) ? 0 : numericScore;
+
+      console.log("Updating UI with:", {
+        score: data.score,
+        verdict: data.verdict,
+        reason: data.reason,
+        image_url: data.image_url,
+      });
 
       const normalizedResult: AnalysisResult = {
         score,
