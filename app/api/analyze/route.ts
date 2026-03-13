@@ -506,11 +506,12 @@ export async function POST(req: Request) {
           title,
           image_url,
           price,
+          status: "processing",
         });
 
       if (insertError) {
         console.error(
-          "ANALYZE API ERROR: Failed to insert processing analysis row",
+          "Insert analysis error:",
           insertError
         );
       } else {
