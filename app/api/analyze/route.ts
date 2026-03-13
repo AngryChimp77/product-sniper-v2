@@ -474,7 +474,7 @@ export async function POST(req: Request) {
       image_url = "https:" + image_url;
     }
 
-    // Generate an analysisId and store a processing row before kicking off AI
+    // Generate an analysisId and store a row before kicking off AI
     const analysisId = crypto.randomUUID();
 
     if (userId) {
@@ -485,9 +485,8 @@ export async function POST(req: Request) {
           user_id: userId,
           url,
           title,
-          image_url,
+          image: image_url,
           price,
-          status: "processing",
         });
 
       if (insertError) {
@@ -560,7 +559,6 @@ Return ONLY valid JSON:
                 score,
                 verdict,
                 reason,
-                status: "complete",
               })
               .eq("id", analysisId);
 
@@ -575,17 +573,6 @@ Return ONLY valid JSON:
               "ANALYZE API ERROR: Background AI analysis failed",
               aiError
             );
-            try {
-              await supabaseAdmin
-                .from("analyses")
-                .update({ status: "error" })
-                .eq("id", analysisId);
-            } catch (updateStatusError) {
-              console.error(
-                "ANALYZE API ERROR: Failed to mark analysis as error",
-                updateStatusError
-              );
-            }
           }
         })();
       }
@@ -597,7 +584,6 @@ Return ONLY valid JSON:
       title,
       image: image_url,
       price,
-      status: "processing",
       domain,
       limitReached: false,
       monthlyUsed: monthlyUsed,
