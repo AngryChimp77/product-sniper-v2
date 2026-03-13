@@ -277,8 +277,12 @@ export async function POST(req: Request) {
     const cleanUrl = url.split("?")[0];
     url = cleanUrl;
 
+    const productId = extractAliExpressProductId(url);
+
     console.log("STEP 2: url:", url);
+    console.log("STEP 2b: Normalized URL:", url);
     console.log("STEP 3: userId:", userId);
+    console.log("AliExpress productId:", productId);
 
     const domain = new URL(url).hostname;
     console.log("STEP 4: domain:", domain);
@@ -367,7 +371,6 @@ export async function POST(req: Request) {
     // STEP 1 — Domain-aware fetch strategy
     if (domain.includes("aliexpress") && url.includes("/item/")) {
       // Prefer the AliExpress product detail API when possible.
-      const productId = extractAliExpressProductId(url);
       let apiSuccess = false;
 
       if (productId) {
