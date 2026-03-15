@@ -427,12 +427,13 @@ export async function POST(req: Request) {
     if (domain.includes("aliexpress")) {
       // Fast AliExpress extraction without ScraperAPI when possible.
       const productId = extractAliExpressProductId(url);
-      let aliData = { title: null, image: null, price: null } as AliExpressData;
+      console.log("[AliExpress] productId extracted:", productId);
+      let aliData = { title: null, image: null, price: null, rating: null, reviews: null } as AliExpressData;
 
       if (productId) {
         const aliUrl = `https://www.aliexpress.com/item/${productId}.html?ajax=true`;
         try {
-          console.log("Fetching AliExpress AJAX product page:", aliUrl);
+          console.log("[AliExpress] Fetching direct AJAX URL:", aliUrl);
           const aliRes = await fetch(aliUrl, {
             headers: {
               "User-Agent":
@@ -440,26 +441,45 @@ export async function POST(req: Request) {
               "Accept-Language": "en-US,en;q=0.9",
             },
           });
+          console.log("[AliExpress] Direct fetch status:", aliRes.status);
           html = (await aliRes.text()).slice(0, 200000);
+          console.log("[AliExpress] Direct fetch HTML length:", html.length);
+          console.log("[AliExpress] HTML snippet (first 500 chars):", html.slice(0, 500));
 
           aliData = extractAliExpressData(html);
+          console.log("[AliExpress] After direct fetch extraction:", {
+            title: aliData.title,
+            image: aliData.image,
+            price: aliData.price,
+            rating: aliData.rating,
+            reviews: aliData.reviews,
+          });
         } catch (err) {
-          console.error(
-            "AliExpress AJAX fetch failed, will fallback to ScraperAPI:",
-            err
-          );
+          console.error("[AliExpress] Direct AJAX fetch failed:", err);
         }
+      } else {
+        console.log("[AliExpress] No productId found in URL, skipping direct fetch");
       }
 
       // If AJAX extraction failed, fallback to ScraperAPI for AliExpress
       if (!aliData.title || !aliData.image) {
-        console.log(
-          "AliExpress AJAX extraction incomplete, falling back to ScraperAPI:",
-          url
-        );
+        console.log("[AliExpress] Direct extraction incomplete (title:", aliData.title, "image:", aliData.image, ") — falling back to ScraperAPI");
         const scraperResponse = await fetch(scraperUrl);
+        console.log("[AliExpress] ScraperAPI response status:", scraperResponse.status);
         html = (await scraperResponse.text()).slice(0, 200000);
+        console.log("[AliExpress] ScraperAPI HTML length:", html.length);
+        console.log("[AliExpress] ScraperAPI HTML snippet (first 500 chars):", html.slice(0, 500));
+
         aliData = extractAliExpressData(html);
+        console.log("[AliExpress] After ScraperAPI extraction:", {
+          title: aliData.title,
+          image: aliData.image,
+          price: aliData.price,
+          rating: aliData.rating,
+          reviews: aliData.reviews,
+        });
+      } else {
+        console.log("[AliExpress] Direct extraction succeeded, skipping ScraperAPI");
       }
 
       title = aliData.title || title;
@@ -467,6 +487,7 @@ export async function POST(req: Request) {
       price = aliData.price || price;
       rating = aliData.rating || rating;
       reviews = aliData.reviews || reviews;
+      console.log("[AliExpress] Final values after branch:", { title, image_url, price, rating, reviews });
     } else {
       // Attempt fast direct fetch first
       try {
