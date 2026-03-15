@@ -44,6 +44,7 @@ type AliExpressData = {
   price: string | null;
   rating: string | null;
   reviews: string | null;
+  orders: string | null;
 };
 
 function extractAliExpressData(html: string): AliExpressData {
@@ -53,6 +54,7 @@ function extractAliExpressData(html: string): AliExpressData {
     price: null,
     rating: null,
     reviews: null,
+    orders: null,
   };
 
   try {
@@ -76,12 +78,12 @@ function extractAliExpressData(html: string): AliExpressData {
         }
 
         const priceModule = data?.priceModule;
-        const activityPrice = priceModule?.formatedActivityPrice;
-        const basePrice = priceModule?.formatedPrice;
-        if (activityPrice && typeof activityPrice === "string") {
-          result.price = activityPrice;
-        } else if (basePrice && typeof basePrice === "string") {
-          result.price = basePrice;
+        const originalPrice =
+          priceModule?.formatedOriginalPrice ||
+          priceModule?.originalPrice ||
+          priceModule?.formatedPrice;
+        if (originalPrice && typeof originalPrice === "string") {
+          result.price = originalPrice;
         }
 
         const feedbackModule = data?.feedbackModule;
@@ -89,13 +91,20 @@ function extractAliExpressData(html: string): AliExpressData {
         if (avgStar != null) result.rating = String(avgStar);
         const totalReviews = feedbackModule?.totalValidNum;
         if (totalReviews != null) result.reviews = String(totalReviews);
+
+        const tradeModule = data?.tradeModule;
+        const tradeCount =
+          tradeModule?.formatTradeCount ||
+          tradeModule?.tradeCount ||
+          data?.deliveryModule?.trade_count;
+        if (tradeCount != null) result.orders = String(tradeCount);
       } catch (err) {
         console.log("[AliExtract] runParams parse error:", err);
       }
     }
 
     // 2) Try window.__INIT_DATA__
-    if (!result.title || !result.image || !result.price) {
+    if (!result.title || !result.image || !result.price || !result.orders) {
       const initMatch = html.match(
         /window\.__INIT_DATA__\s*=\s*({[\s\S]*?});/
       );
@@ -121,13 +130,15 @@ function extractAliExpressData(html: string): AliExpressData {
           }
 
           const priceModule = data?.priceModule || data?.price;
-          const activityPrice = priceModule?.formatedActivityPrice || priceModule?.promoPrice;
-          const basePrice = priceModule?.formatedPrice || priceModule?.price || priceModule?.salePrice;
           if (!result.price) {
-            if (activityPrice && typeof activityPrice === "string") {
-              result.price = activityPrice;
-            } else if (basePrice && typeof basePrice === "string") {
-              result.price = basePrice;
+            const originalPrice =
+              priceModule?.formatedOriginalPrice ||
+              priceModule?.originalPrice ||
+              priceModule?.formatedPrice ||
+              priceModule?.price ||
+              priceModule?.salePrice;
+            if (originalPrice && typeof originalPrice === "string") {
+              result.price = originalPrice;
             }
           }
 
@@ -138,6 +149,15 @@ function extractAliExpressData(html: string): AliExpressData {
             const totalReviews = feedbackModule?.totalValidNum;
             if (!result.reviews && totalReviews != null) result.reviews = String(totalReviews);
           }
+
+          if (!result.orders) {
+            const tradeModule = data?.tradeModule;
+            const tradeCount =
+              tradeModule?.formatTradeCount ||
+              tradeModule?.tradeCount ||
+              data?.deliveryModule?.trade_count;
+            if (tradeCount != null) result.orders = String(tradeCount);
+          }
         } catch (err) {
           console.log("[AliExtract] __INIT_DATA__ parse error:", err);
         }
@@ -145,7 +165,7 @@ function extractAliExpressData(html: string): AliExpressData {
     }
 
     // 3) JSON-LD fallback
-    if (!result.title || !result.image || !result.price || !result.rating || !result.reviews) {
+    if (!result.title || !result.image || !result.price || !result.rating || !result.reviews || !result.orders) {
       try {
         const ld = extractJSONLD(html) as any;
         if (!result.title && ld?.title) result.title = ld.title;
@@ -160,6 +180,34 @@ function extractAliExpressData(html: string): AliExpressData {
       } catch (err) {
         console.log("[AliExtract] JSON-LD fallback error:", err);
       }
+    }
+    // 4) Regex fallbacks
+    if (!result.orders) {
+      const orderPatterns = [
+        /"formatTradeCount":"([^"]+)"/,
+        /"tradeCount":(\d+)/,
+        /"trade_count":"?(\d+)"?/,
+        /(\d[\d,]*)\+?\s*sold/i,
+        /(\d[\d,]*)\s*orders?/i,
+      ];
+      for (const pattern of orderPatterns) {
+        const m = html.match(pattern);
+        if (m) { result.orders = m[1]; break; }
+      }
+    }
+
+    if (!result.reviews) {
+      const m =
+        html.match(/"totalValidNum":(\d+)/) ||
+        html.match(/(\d[\d,]+)\s*reviews?/i);
+      if (m) result.reviews = m[1];
+    }
+
+    if (!result.price) {
+      const m =
+        html.match(/"formatedOriginalPrice":"([^"]+)"/) ||
+        html.match(/"originalPrice":"([^"]+)"/);
+      if (m) result.price = m[1];
     }
   } catch (err) {
     console.log("[AliExtract] error:", err);
@@ -285,6 +333,7 @@ function buildPrompt(p: {
   currency: string;
   rating: string;
   reviews: string;
+  orders: string;
   image_url: string | null;
 }): string {
   return `You are an expert dropshipping product analyst.
@@ -294,7 +343,8 @@ URL: ${p.url}
 Title: ${p.title}
 Price: ${p.price}${p.currency ? ` ${p.currency}` : ""}
 Rating: ${p.rating || "unknown"}
-Reviews / orders: ${p.reviews || "unknown"}
+Reviews: ${p.reviews || "unknown"}
+Orders sold: ${p.orders || "unknown"}
 Image URL: ${p.image_url || "none"}
 
 Score this product from 0–100 using exactly these 6 weighted factors:
@@ -416,6 +466,7 @@ export async function POST(req: Request) {
     const currency = "";
     let rating = "";
     let reviews = "";
+    let orders = "";
     let score: number | null = null;
     let verdict: string | null = null;
     let reason: string | null = null;
@@ -454,6 +505,7 @@ export async function POST(req: Request) {
           price: aliData.price,
           rating: aliData.rating,
           reviews: aliData.reviews,
+          orders: aliData.orders,
         });
 
         const ld = extractJSONLD(directHtml) as any;
@@ -465,10 +517,11 @@ export async function POST(req: Request) {
         price = aliData.price || ld.price || "";
         rating = aliData.rating || ld.rating || scraped.rating || "";
         reviews = aliData.reviews || ld.reviews || scraped.reviews || "";
+        orders = aliData.orders || "";
 
         if (image_url && image_url.startsWith("//")) image_url = `https:${image_url}`;
 
-        console.log("[AliExpress] After direct fetch:", { title, image_url, price, rating, reviews });
+        console.log("[AliExpress] After direct fetch:", { title, image_url, price, rating, reviews, orders });
       } catch (err) {
         console.error("[AliExpress] Direct fetch failed:", err);
       }
@@ -493,10 +546,11 @@ export async function POST(req: Request) {
           if (!price) price = aliData.price || ld.price || "";
           if (!rating) rating = aliData.rating || ld.rating || scraped.rating || "";
           if (!reviews) reviews = aliData.reviews || ld.reviews || scraped.reviews || "";
+          if (!orders) orders = aliData.orders || "";
 
           if (image_url && image_url.startsWith("//")) image_url = `https:${image_url}`;
 
-          console.log("[AliExpress] After ScraperAPI fallback:", { title, image_url, price, rating, reviews });
+          console.log("[AliExpress] After ScraperAPI fallback:", { title, image_url, price, rating, reviews, orders });
         } catch (err) {
           console.error("[AliExpress] ScraperAPI fallback failed:", err);
         }
@@ -510,7 +564,7 @@ export async function POST(req: Request) {
       // OpenAI — synchronous
       try {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const prompt = buildPrompt({ url, title, price, currency, rating, reviews, image_url });
+        const prompt = buildPrompt({ url, title, price, currency, rating, reviews, orders, image_url });
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [{ role: "user", content: prompt }],
@@ -537,6 +591,7 @@ export async function POST(req: Request) {
           title,
           image_url,
           price,
+          orders_sold: orders || null,
           score,
           verdict,
           reason,
@@ -552,6 +607,7 @@ export async function POST(req: Request) {
         title,
         image: image_url,
         price,
+        orders_sold: orders || null,
         score,
         verdict,
         reason,
@@ -585,6 +641,7 @@ export async function POST(req: Request) {
       price = aliData.price || ld.price || "";
       rating = aliData.rating || ld.rating || scraped.rating || "";
       reviews = aliData.reviews || ld.reviews || scraped.reviews || "";
+      orders = aliData.orders || "";
 
       if (!title && !ogImage) {
         console.log("[NonAliExpress] Direct fetch empty, falling back to ScraperAPI");
@@ -601,6 +658,7 @@ export async function POST(req: Request) {
         price = sAliData.price || sLd.price || "";
         rating = sAliData.rating || sLd.rating || sScraped.rating || "";
         reviews = sAliData.reviews || sLd.reviews || sScraped.reviews || "";
+        orders = sAliData.orders || orders;
       }
     } catch (err) {
       console.error("[NonAliExpress] Fetch failed:", err);
@@ -634,7 +692,7 @@ export async function POST(req: Request) {
         (async () => {
           try {
             const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-            const prompt = buildPrompt({ url, title, price, currency, rating, reviews, image_url });
+            const prompt = buildPrompt({ url, title, price, currency, rating, reviews, orders, image_url });
             const completion = await openai.chat.completions.create({
               model: "gpt-4o-mini",
               messages: [{ role: "user", content: prompt }],
@@ -651,6 +709,7 @@ export async function POST(req: Request) {
                 verdict: parsed.verdict,
                 reason: parsed.reason,
                 ad_angles: Array.isArray(parsed.ad_angles) ? parsed.ad_angles : null,
+                orders_sold: orders || null,
               })
               .eq("id", analysisId);
 
@@ -669,6 +728,7 @@ export async function POST(req: Request) {
       title,
       image: image_url,
       price,
+      orders_sold: orders || null,
       score: null,
       verdict: null,
       reason: null,
