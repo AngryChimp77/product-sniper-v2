@@ -51,6 +51,8 @@ type AliExpressData = {
   title: string | null;
   image: string | null;
   price: string | null;
+  rating: string | null;
+  reviews: string | null;
 };
 
 function extractAliExpressData(html: string): AliExpressData {
@@ -58,6 +60,8 @@ function extractAliExpressData(html: string): AliExpressData {
     title: null,
     image: null,
     price: null,
+    rating: null,
+    reviews: null,
   };
 
   try {
@@ -92,6 +96,17 @@ function extractAliExpressData(html: string): AliExpressData {
           result.price = activityPrice;
         } else if (basePrice && typeof basePrice === "string") {
           result.price = basePrice;
+        }
+
+        const feedbackModule = data?.feedbackModule;
+        const avgStar =
+          feedbackModule?.productAverageStar || feedbackModule?.evarageStar;
+        if (avgStar != null) {
+          result.rating = String(avgStar);
+        }
+        const totalReviews = feedbackModule?.totalValidNum;
+        if (totalReviews != null) {
+          result.reviews = String(totalReviews);
         }
       } catch (err) {
         console.log("AliExtract runParams parse error:", err);
@@ -148,6 +163,19 @@ function extractAliExpressData(html: string): AliExpressData {
               result.price = basePrice;
             }
           }
+
+          if (!result.rating || !result.reviews) {
+            const feedbackModule = data?.feedbackModule;
+            const avgStar =
+              feedbackModule?.productAverageStar || feedbackModule?.evarageStar;
+            if (!result.rating && avgStar != null) {
+              result.rating = String(avgStar);
+            }
+            const totalReviews = feedbackModule?.totalValidNum;
+            if (!result.reviews && totalReviews != null) {
+              result.reviews = String(totalReviews);
+            }
+          }
         } catch (err) {
           console.log("AliExtract __INIT_DATA__ parse error:", err);
         }
@@ -155,7 +183,7 @@ function extractAliExpressData(html: string): AliExpressData {
     }
 
     // 3) Fallback to JSON-LD if we still don't have core fields
-    if (!result.title || !result.image || !result.price) {
+    if (!result.title || !result.image || !result.price || !result.rating || !result.reviews) {
       try {
         const ld = extractJSONLD(html) as any;
 
@@ -173,6 +201,14 @@ function extractAliExpressData(html: string): AliExpressData {
 
         if (!result.price && ld?.price) {
           result.price = String(ld.price);
+        }
+
+        if (!result.rating && ld?.rating) {
+          result.rating = String(ld.rating);
+        }
+
+        if (!result.reviews && ld?.reviews) {
+          result.reviews = String(ld.reviews);
         }
       } catch (err) {
         console.log("AliExtract JSON-LD fallback error:", err);
@@ -201,12 +237,15 @@ function extractJSONLD(html: string) {
       const json = JSON.parse(jsonText);
 
       if ((json as any)["@type"] === "Product") {
+        const aggRating = (json as any).aggregateRating;
         return {
           title: (json as any).name || null,
           image: Array.isArray((json as any).image)
             ? (json as any).image[0]
             : (json as any).image || null,
           price: (json as any).offers?.price || null,
+          rating: aggRating?.ratingValue != null ? String(aggRating.ratingValue) : null,
+          reviews: aggRating?.reviewCount != null ? String(aggRating.reviewCount) : null,
         };
       }
     } catch {
@@ -247,6 +286,33 @@ function extractOGImage(html: string): string | null {
     /<meta property="og:image" content="([^"]+)"/i
   );
   return match ? match[1] : null;
+}
+
+function extractRatingAndReviews(html: string): { rating: string | null; reviews: string | null } {
+  let rating: string | null = null;
+  let reviews: string | null = null;
+
+  // Amazon: "4.5 out of 5 stars" and "1,234 ratings"
+  const amazonRating = html.match(/(\d+(?:\.\d+)?)\s+out\s+of\s+5\s+stars/i);
+  if (amazonRating) rating = amazonRating[1];
+
+  const amazonReviews = html.match(/([\d,]+)\s+(?:global\s+)?ratings?/i);
+  if (amazonReviews) reviews = amazonReviews[1].replace(/,/g, "");
+
+  // Generic: itemprop="ratingValue" / itemprop="reviewCount"
+  if (!rating) {
+    const ratingProp = html.match(/itemprop="ratingValue"[^>]*content="([^"]+)"/i)
+      || html.match(/itemprop="ratingValue"[^>]*>([^<]+)</i);
+    if (ratingProp) rating = ratingProp[1].trim();
+  }
+
+  if (!reviews) {
+    const reviewProp = html.match(/itemprop="reviewCount"[^>]*content="([^"]+)"/i)
+      || html.match(/itemprop="reviewCount"[^>]*>([^<]+)</i);
+    if (reviewProp) reviews = reviewProp[1].trim();
+  }
+
+  return { rating, reviews };
 }
 
 export async function POST(req: Request) {
@@ -348,6 +414,8 @@ export async function POST(req: Request) {
     let currency = "";
     let rating = "";
     let reviews = "";
+    let ratingFinal = "";
+    let reviewsFinal = "";
 
     let html = "";
 
@@ -397,6 +465,8 @@ export async function POST(req: Request) {
       title = aliData.title || title;
       image_url = aliData.image || image_url;
       price = aliData.price || price;
+      rating = aliData.rating || rating;
+      reviews = aliData.reviews || reviews;
     } else {
       // Attempt fast direct fetch first
       try {
@@ -417,20 +487,24 @@ export async function POST(req: Request) {
       }
 
       // Run extraction on direct HTML
-      let aliData = { title: null, image: null, price: null } as AliExpressData;
+      let aliData = { title: null, image: null, price: null, rating: null, reviews: null } as AliExpressData;
       let ld: any = {};
       let ogImage: string | null = null;
+      let scraped = { rating: null as string | null, reviews: null as string | null };
 
       if (html) {
         aliData = extractAliExpressData(html);
         ld = extractJSONLD(html);
         ogImage = extractOGImage(html);
+        scraped = extractRatingAndReviews(html);
       }
 
       title = aliData.title || (ld as any).title || "";
       image_url =
         aliData.image || (ld as any).image || ogImage || null;
       price = aliData.price || (ld as any).price || "";
+      rating = aliData.rating || (ld as any).rating || scraped.rating || "";
+      reviews = aliData.reviews || (ld as any).reviews || scraped.reviews || "";
 
       // If everything is missing, assume we were blocked and fallback
       if (!aliData.title && !(ld as any).title && !ogImage) {
@@ -444,14 +518,16 @@ export async function POST(req: Request) {
     }
 
     // STEP 2/4 — Unified extraction on final HTML (direct or ScraperAPI)
-    let aliDataFinal = { title: null, image: null, price: null } as AliExpressData;
+    let aliDataFinal = { title: null, image: null, price: null, rating: null, reviews: null } as AliExpressData;
     let ldFinal: any = {};
     let ogImageFinal: string | null = null;
+    let scrapedFinal = { rating: null as string | null, reviews: null as string | null };
 
     if (html) {
       aliDataFinal = extractAliExpressData(html);
       ldFinal = extractJSONLD(html);
       ogImageFinal = extractOGImage(html);
+      scrapedFinal = extractRatingAndReviews(html);
     }
 
     // STEP 5 — Final data merge with priority order
@@ -468,6 +544,10 @@ export async function POST(req: Request) {
       null;
     price =
       aliDataFinal.price || (ldFinal as any).price || price || "";
+    ratingFinal =
+      aliDataFinal.rating || (ldFinal as any).rating || scrapedFinal.rating || rating || "";
+    reviewsFinal =
+      aliDataFinal.reviews || (ldFinal as any).reviews || scrapedFinal.reviews || reviews || "";
 
     // Normalise protocol-less images
     if (image_url && image_url.startsWith("//")) {
@@ -511,9 +591,9 @@ Title: ${title}
 
 Price: ${price} ${currency}
 
-Rating: ${rating}
+Rating: ${ratingFinal}
 
-Reviews: ${reviews}
+Reviews: ${reviewsFinal}
 
 Image URL: ${image_url}
 
