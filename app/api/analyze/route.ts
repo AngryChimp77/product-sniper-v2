@@ -278,6 +278,63 @@ function extractRatingAndReviews(html: string): { rating: string | null; reviews
   return { rating, reviews };
 }
 
+function buildPrompt(p: {
+  url: string;
+  title: string;
+  price: string;
+  currency: string;
+  rating: string;
+  reviews: string;
+  image_url: string | null;
+}): string {
+  return `You are an expert dropshipping product analyst.
+
+Product data:
+URL: ${p.url}
+Title: ${p.title}
+Price: ${p.price}${p.currency ? ` ${p.currency}` : ""}
+Rating: ${p.rating || "unknown"}
+Reviews / orders: ${p.reviews || "unknown"}
+Image URL: ${p.image_url || "none"}
+
+Score this product from 0–100 using exactly these 6 weighted factors:
+
+1. Wow / impulse factor (25%) — Does it stop the scroll? Unique mechanism, solves a real pain, category-specific appeal. Score 1–10.
+2. Niche specificity / saturation (20%) — Specific niche language = low competition = high score. Generic product for everyone = low score. Score 1–10.
+3. Price / margin potential (20%) — Score relative to category price norms, not absolute cost. If price unknown, estimate from title and category. Score 1–10.
+4. Demand & sales velocity (15%) — Based on orders sold and review count. Tiers: under 50 = neutral (5), 50–500 = early traction (6), 500–5000 = sweet spot (8–9), 5000–50000 = popular but saturating (6–7), 50000+ = mass market saturated (3–4). Modify with rating: 4.8+ adds 1 point, below 4.0 subtracts 1–2 points. Score 1–10.
+5. Visual / perceived value (10%) — Does it look premium relative to its price? Premium materials, professional appearance. Score 1–10.
+6. Trend signal (10%) — Category momentum and platform-friendly format (TikTok/Reels-ready). Score 1–10.
+
+Scoring rules:
+- Be strict. Most products should score between 25–60. Below 45 is common and correct for average products.
+- Only truly exceptional products score above 80.
+- Missing data (no price, no orders) should push the score down, not stay neutral.
+
+Verdict rules:
+- 0–44: "KILL"
+- 45–69: "TEST"
+- 70–100: "SCALE"
+
+Reason: 2–3 sentences, specific to this product, mention actual product details, actionable. For KILL explain what is weak. For TEST explain what to validate. For SCALE explain what makes it strong.
+
+Also generate exactly 3 ad angles. Each angle has:
+- hook: a specific scroll-stopping ad hook for this product (not generic)
+- target: specific audience targeting recommendation (platform, age, interest)
+
+Return ONLY valid JSON:
+{
+  "score": number,
+  "verdict": "KILL" or "TEST" or "SCALE",
+  "reason": "string",
+  "ad_angles": [
+    { "hook": "string", "target": "string" },
+    { "hook": "string", "target": "string" },
+    { "hook": "string", "target": "string" }
+  ]
+}`;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -362,6 +419,7 @@ export async function POST(req: Request) {
     let score: number | null = null;
     let verdict: string | null = null;
     let reason: string | null = null;
+    let ad_angles: { hook: string; target: string }[] | null = null;
 
     // ── AliExpress: fully synchronous scrape + AI ──────────────────────────
     if (isAliExpress) {
@@ -452,29 +510,7 @@ export async function POST(req: Request) {
       // OpenAI — synchronous
       try {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const prompt = `
-Analyze this ecommerce product.
-
-URL: ${url}
-
-Title: ${title}
-
-Price: ${price} ${currency}
-
-Rating: ${rating}
-
-Reviews: ${reviews}
-
-Image URL: ${image_url}
-
-Return ONLY valid JSON:
-
-{
-"score": number from 0 to 100,
-"verdict": "WINNER" or "LOSER",
-"reason": "short explanation"
-}
-`;
+        const prompt = buildPrompt({ url, title, price, currency, rating, reviews, image_url });
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [{ role: "user", content: prompt }],
@@ -486,6 +522,7 @@ Return ONLY valid JSON:
         score = parsed.score;
         verdict = parsed.verdict;
         reason = parsed.reason;
+        ad_angles = Array.isArray(parsed.ad_angles) ? parsed.ad_angles : null;
       } catch (err) {
         console.error("[AliExpress] OpenAI failed:", err);
       }
@@ -503,6 +540,7 @@ Return ONLY valid JSON:
           score,
           verdict,
           reason,
+          ad_angles,
         });
         if (insertError) {
           console.error("ANALYZE API ERROR: Failed to insert AliExpress row", insertError);
@@ -517,6 +555,7 @@ Return ONLY valid JSON:
         score,
         verdict,
         reason,
+        ad_angles,
         domain,
         limitReached: false,
         monthlyUsed,
@@ -595,29 +634,7 @@ Return ONLY valid JSON:
         (async () => {
           try {
             const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-            const prompt = `
-Analyze this ecommerce product.
-
-URL: ${url}
-
-Title: ${title}
-
-Price: ${price} ${currency}
-
-Rating: ${rating}
-
-Reviews: ${reviews}
-
-Image URL: ${image_url}
-
-Return ONLY valid JSON:
-
-{
-"score": number from 0 to 100,
-"verdict": "WINNER" or "LOSER",
-"reason": "short explanation"
-}
-`;
+            const prompt = buildPrompt({ url, title, price, currency, rating, reviews, image_url });
             const completion = await openai.chat.completions.create({
               model: "gpt-4o-mini",
               messages: [{ role: "user", content: prompt }],
@@ -629,7 +646,12 @@ Return ONLY valid JSON:
 
             const { error: updateError } = await supabaseAdmin
               .from("analyses")
-              .update({ score: parsed.score, verdict: parsed.verdict, reason: parsed.reason })
+              .update({
+                score: parsed.score,
+                verdict: parsed.verdict,
+                reason: parsed.reason,
+                ad_angles: Array.isArray(parsed.ad_angles) ? parsed.ad_angles : null,
+              })
               .eq("id", analysisId);
 
             if (updateError) {
@@ -650,6 +672,7 @@ Return ONLY valid JSON:
       score: null,
       verdict: null,
       reason: null,
+      ad_angles: null,
       domain,
       limitReached: false,
       monthlyUsed,
