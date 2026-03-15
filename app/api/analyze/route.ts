@@ -501,6 +501,15 @@ export async function POST(req: Request) {
           hasPageData: premiumHtml.includes('pageData'),
         });
 
+        const runParamsRaw = premiumHtml.match(/window\.runParams\s*=\s*({[\s\S]*?});/);
+        console.log("[AliExpress] runParams found:", !!runParamsRaw);
+        if (runParamsRaw) {
+          console.log("[AliExpress] runParams length:", runParamsRaw[1]?.length);
+          console.log("[AliExpress] runParams snippet:", runParamsRaw[1]?.slice(0, 500));
+        }
+        const runParamsRaw2 = premiumHtml.match(/window\.runParams\s*=\s*(\{.+?\});?\s*\n/);
+        console.log("[AliExpress] runParams alt match:", !!runParamsRaw2);
+
         const aliData = extractAliExpressData(premiumHtml);
         console.log("[AliExpress] runParams/__INIT_DATA__ extraction:", {
           title: aliData.title,
