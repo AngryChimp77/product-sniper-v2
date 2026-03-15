@@ -16,11 +16,13 @@ async function normalizeUrl(url: string): Promise<string> {
   try {
     if (url.includes("aliexpress")) {
       // Extract productId directly from URL — no fetch needed
+      // Normalise any subdomain (fr., de., m., etc.) to www.aliexpress.com
       const idMatch = url.match(/\/item\/(\d+)/);
       if (idMatch) {
         return `https://www.aliexpress.com/item/${idMatch[1]}.html`;
       }
-      return url;
+      // No productId found — at least canonicalise the subdomain
+      return url.replace(/https?:\/\/[a-z0-9-]+\.aliexpress\.com/i, "https://www.aliexpress.com");
     }
 
     if (url.includes("amazon")) {
