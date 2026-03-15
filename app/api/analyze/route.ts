@@ -488,6 +488,18 @@ export async function POST(req: Request) {
         const premiumHtml = (await premiumRes.text()).slice(0, 200000);
         console.log("[AliExpress] ScraperAPI premium HTML length:", premiumHtml.length);
         console.log("[AliExpress] HTML snippet (first 500 chars):", premiumHtml.slice(0, 500));
+        console.log("[AliExpress] HTML price/data search:", {
+          hasRunParams: premiumHtml.includes('window.runParams'),
+          hasInitData: premiumHtml.includes('window.__INIT_DATA__'),
+          hasTradeCount: premiumHtml.includes('tradeCount'),
+          hasFormatPrice: premiumHtml.includes('formatedPrice'),
+          hasSold: premiumHtml.includes('sold'),
+          hasTotalValidNum: premiumHtml.includes('totalValidNum'),
+          hasPriceModule: premiumHtml.includes('priceModule'),
+          hasSkuModule: premiumHtml.includes('skuModule'),
+          hasDataLayer: premiumHtml.includes('dataLayer'),
+          hasPageData: premiumHtml.includes('pageData'),
+        });
 
         const aliData = extractAliExpressData(premiumHtml);
         console.log("[AliExpress] runParams/__INIT_DATA__ extraction:", {
