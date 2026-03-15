@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
@@ -50,6 +50,41 @@ export default function Home() {
   const [monthlyUsed, setMonthlyUsed] = useState<number | null>(null);
   const [monthlyLimit, setMonthlyLimit] = useState<number | null>(null);
   const [isPro, setIsPro] = useState(false);
+
+  const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) clearTimeout(pollingRef.current);
+    };
+  }, []);
+
+  async function pollForScore(analysisId: string, attempts = 0) {
+    if (attempts >= 15) return; // 15 × 2s = 30s max
+    const { data } = await supabase
+      .from("analyses")
+      .select("score, verdict, reason")
+      .eq("id", analysisId)
+      .single();
+    if (data?.score !== null && data?.score !== undefined) {
+      const numericScore = Number(data.score);
+      setResult((prev) =>
+        prev
+          ? {
+              ...prev,
+              score: Number.isNaN(numericScore) ? 0 : numericScore,
+              verdict: data.verdict,
+              reason: data.reason,
+            }
+          : prev
+      );
+      return;
+    }
+    pollingRef.current = setTimeout(
+      () => pollForScore(analysisId, attempts + 1),
+      2000
+    );
+  }
 
   async function openBillingPortal() {
     try {
@@ -228,37 +263,31 @@ export default function Home() {
         score: data.score,
         verdict: data.verdict,
         reason: data.reason,
-        image_url: data.image_url,
+        image: data.image,
       });
 
       const normalizedResult: AnalysisResult = {
         score,
         verdict: data.verdict,
         reason: data.reason,
-        image: data.image_url || data.image || null,
+        image: data.image || null,
       };
 
       setResult(normalizedResult);
 
-      const url = link;
+      // If score is null (non-AliExpress fire-and-forget AI), poll until it lands
+      if (data.score === null || data.score === undefined) {
+        if (pollingRef.current) clearTimeout(pollingRef.current);
+        pollForScore(data.analysisId);
+      }
 
-      await supabase.from("analyses").insert({
-        user_id: authUser.id,
-        url,
-        score,
-        verdict: normalizedResult.verdict,
-        reason: normalizedResult.reason,
-        title: data.title,
-        image_url: data.image_url,
-        price: data.price,
-      });
       const newAnalysis: Analysis = {
-        url,
+        url: link,
         score,
-        verdict: normalizedResult.verdict as Analysis["verdict"],
+        verdict: (normalizedResult.verdict ?? "LOSER") as Analysis["verdict"],
         reason: normalizedResult.reason,
         title: data.title,
-        image_url: data.image_url,
+        image_url: data.image || null,
         price: data.price,
         date: new Date().toISOString(),
       };
