@@ -49,6 +49,7 @@ export default function Home() {
   const [limitMessage, setLimitMessage] = useState<string | null>(null);
   const [monthlyUsed, setMonthlyUsed] = useState<number | null>(null);
   const [monthlyLimit, setMonthlyLimit] = useState<number | null>(null);
+  const [isPro, setIsPro] = useState(false);
 
   async function openBillingPortal() {
     try {
@@ -143,6 +144,7 @@ export default function Home() {
 
       if (userRecord) {
         document.cookie = `is_pro=${userRecord.is_pro}; path=/`;
+        setIsPro(userRecord.is_pro === true);
       }
     }
 
@@ -460,7 +462,7 @@ export default function Home() {
                   : "Analyze"}
               </button>
             </div>
-            {monthlyUsed !== null && monthlyLimit !== null && (
+            {!isPro && monthlyUsed !== null && monthlyLimit !== null && (
               <>
                 <div className="text-sm text-gray-400 mt-2">
                   Usage: {monthlyUsed}/{monthlyLimit} analyses this month

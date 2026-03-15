@@ -288,6 +288,16 @@ function extractOGImage(html: string): string | null {
   return match ? match[1] : null;
 }
 
+function extractMetaTitle(html: string): string | null {
+  const og = html.match(/<meta property="og:title" content="([^"]+)"/i);
+  if (og) return og[1];
+  const meta = html.match(/<meta name="title" content="([^"]+)"/i);
+  if (meta) return meta[1];
+  const title = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  if (title) return title[1].trim();
+  return null;
+}
+
 function extractRatingAndReviews(html: string): { rating: string | null; reviews: string | null } {
   let rating: string | null = null;
   let reviews: string | null = null;
@@ -422,31 +432,68 @@ export async function POST(req: Request) {
     const scraperUrl = `http://api.scraperapi.com?api_key=${
       process.env.SCRAPERAPI_KEY
     }&url=${encodeURIComponent(url)}`;
+    const scraperRenderUrl = `http://api.scraperapi.com?api_key=${
+      process.env.SCRAPERAPI_KEY
+    }&url=${encodeURIComponent(url)}&render=true`;
 
     // STEP 1 — Domain-aware fetch strategy
     if (domain.includes("aliexpress")) {
-      // Fast AliExpress extraction without ScraperAPI when possible.
       const productId = extractAliExpressProductId(url);
       console.log("[AliExpress] productId extracted:", productId);
       let aliData = { title: null, image: null, price: null, rating: null, reviews: null } as AliExpressData;
 
-      if (productId) {
-        const aliUrl = `https://www.aliexpress.com/item/${productId}.html?ajax=true`;
+      // Primary: ScraperAPI with JS rendering — AliExpress requires it
+      console.log("[AliExpress] Fetching via ScraperAPI render=true");
+      try {
+        const renderRes = await fetch(scraperRenderUrl);
+        console.log("[AliExpress] ScraperAPI render=true status:", renderRes.status);
+        html = (await renderRes.text()).slice(0, 200000);
+        console.log("[AliExpress] ScraperAPI render=true HTML length:", html.length);
+        console.log("[AliExpress] HTML snippet (first 500 chars):", html.slice(0, 500));
+
+        aliData = extractAliExpressData(html);
+        // Also try meta/og tags as extra signal
+        if (!aliData.title) aliData.title = extractMetaTitle(html);
+        if (!aliData.image) aliData.image = extractOGImage(html);
+        console.log("[AliExpress] After ScraperAPI render=true extraction:", {
+          title: aliData.title,
+          image: aliData.image,
+          price: aliData.price,
+          rating: aliData.rating,
+          reviews: aliData.reviews,
+        });
+      } catch (err) {
+        console.error("[AliExpress] ScraperAPI render=true failed:", err);
+      }
+
+      // Fallback: direct fetch with realistic headers
+      if (!aliData.title || !aliData.image) {
+        const directUrl = productId
+          ? `https://www.aliexpress.com/item/${productId}.html`
+          : url;
+        console.log("[AliExpress] render=true incomplete — falling back to direct fetch:", directUrl);
         try {
-          console.log("[AliExpress] Fetching direct AJAX URL:", aliUrl);
-          const aliRes = await fetch(aliUrl, {
+          const directRes = await fetch(directUrl, {
             headers: {
               "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-              "Accept-Language": "en-US,en;q=0.9",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+              "Accept-Language": "en-US",
+              "Accept-Encoding": "gzip, deflate, br",
+              "Cache-Control": "no-cache",
             },
           });
-          console.log("[AliExpress] Direct fetch status:", aliRes.status);
-          html = (await aliRes.text()).slice(0, 200000);
+          console.log("[AliExpress] Direct fetch status:", directRes.status);
+          html = (await directRes.text()).slice(0, 200000);
           console.log("[AliExpress] Direct fetch HTML length:", html.length);
-          console.log("[AliExpress] HTML snippet (first 500 chars):", html.slice(0, 500));
+          console.log("[AliExpress] Direct HTML snippet (first 500 chars):", html.slice(0, 500));
 
-          aliData = extractAliExpressData(html);
+          const directData = extractAliExpressData(html);
+          if (!aliData.title) aliData.title = directData.title ?? extractMetaTitle(html);
+          if (!aliData.image) aliData.image = directData.image ?? extractOGImage(html);
+          if (!aliData.price) aliData.price = directData.price;
+          if (!aliData.rating) aliData.rating = directData.rating;
+          if (!aliData.reviews) aliData.reviews = directData.reviews;
           console.log("[AliExpress] After direct fetch extraction:", {
             title: aliData.title,
             image: aliData.image,
@@ -455,31 +502,8 @@ export async function POST(req: Request) {
             reviews: aliData.reviews,
           });
         } catch (err) {
-          console.error("[AliExpress] Direct AJAX fetch failed:", err);
+          console.error("[AliExpress] Direct fetch failed:", err);
         }
-      } else {
-        console.log("[AliExpress] No productId found in URL, skipping direct fetch");
-      }
-
-      // If AJAX extraction failed, fallback to ScraperAPI for AliExpress
-      if (!aliData.title || !aliData.image) {
-        console.log("[AliExpress] Direct extraction incomplete (title:", aliData.title, "image:", aliData.image, ") — falling back to ScraperAPI");
-        const scraperResponse = await fetch(scraperUrl);
-        console.log("[AliExpress] ScraperAPI response status:", scraperResponse.status);
-        html = (await scraperResponse.text()).slice(0, 200000);
-        console.log("[AliExpress] ScraperAPI HTML length:", html.length);
-        console.log("[AliExpress] ScraperAPI HTML snippet (first 500 chars):", html.slice(0, 500));
-
-        aliData = extractAliExpressData(html);
-        console.log("[AliExpress] After ScraperAPI extraction:", {
-          title: aliData.title,
-          image: aliData.image,
-          price: aliData.price,
-          rating: aliData.rating,
-          reviews: aliData.reviews,
-        });
-      } else {
-        console.log("[AliExpress] Direct extraction succeeded, skipping ScraperAPI");
       }
 
       title = aliData.title || title;
@@ -556,7 +580,7 @@ export async function POST(req: Request) {
       aliDataFinal.title ||
       (ldFinal as any).title ||
       title ||
-      "AliExpress Product";
+      "";
     image_url =
       aliDataFinal.image ||
       (ldFinal as any).image ||
@@ -573,6 +597,15 @@ export async function POST(req: Request) {
     // Normalise protocol-less images
     if (image_url && image_url.startsWith("//")) {
       image_url = "https:" + image_url;
+    }
+
+    // Guard: if we couldn't extract a title, don't waste a DB row or an OpenAI call
+    if (!title) {
+      console.error("[Analyze] Extraction failed — no title found after all attempts for:", url);
+      return NextResponse.json(
+        { error: "Could not extract product data" },
+        { status: 422 }
+      );
     }
 
     // Generate an analysisId and store a row before kicking off AI
