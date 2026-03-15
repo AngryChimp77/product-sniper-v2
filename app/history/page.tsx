@@ -143,9 +143,9 @@ export default function HistoryPage() {
                 );
 
                 const verdictClasses =
-                  item.verdict === "WINNER"
+                  item.verdict === "WINNER" || item.verdict === "SCALE"
                     ? "text-emerald-400 bg-emerald-400/10 border-emerald-400/30"
-                    : item.verdict === "AVERAGE"
+                    : item.verdict === "TEST" || item.verdict === "AVERAGE"
                     ? "text-amber-300 bg-amber-300/10 border-amber-300/30"
                     : "text-rose-400 bg-rose-400/10 border-rose-400/30";
 
