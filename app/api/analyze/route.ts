@@ -477,16 +477,17 @@ export async function POST(req: Request) {
       const productId = extractAliExpressProductId(url);
       console.log("[AliExpress] productId:", productId);
 
-      // Method 1: ScraperAPI premium=true (residential proxy, no JS render)
-      const scraperPremiumUrl = `http://api.scraperapi.com?api_key=${
-        process.env.SCRAPERAPI_KEY
-      }&url=${encodeURIComponent(url)}&premium=true`;
-      console.log("[AliExpress] Fetching via ScraperAPI premium=true");
+      // Method 1: ScraperAPI render=true + premium=true (JS render + residential proxy)
+      const scraperRenderPremiumUrl = `http://api.scraperapi.com?api_key=${process.env.SCRAPERAPI_KEY}&url=${encodeURIComponent(url)}&render=true&premium=true`;
+      console.log("[AliExpress] Fetching via ScraperAPI render+premium");
       try {
-        const premiumRes = await fetch(scraperPremiumUrl);
-        console.log("[AliExpress] ScraperAPI premium status:", premiumRes.status);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+        const premiumRes = await fetch(scraperRenderPremiumUrl, { signal: controller.signal });
+        clearTimeout(timeout);
+        console.log("[AliExpress] ScraperAPI render+premium status:", premiumRes.status);
         const premiumHtml = (await premiumRes.text()).slice(0, 200000);
-        console.log("[AliExpress] ScraperAPI premium HTML length:", premiumHtml.length);
+        console.log("[AliExpress] ScraperAPI render+premium HTML length:", premiumHtml.length);
         console.log("[AliExpress] HTML snippet (first 500 chars):", premiumHtml.slice(0, 500));
         console.log("[AliExpress] HTML price/data search:", {
           hasRunParams: premiumHtml.includes('window.runParams'),
@@ -500,15 +501,6 @@ export async function POST(req: Request) {
           hasDataLayer: premiumHtml.includes('dataLayer'),
           hasPageData: premiumHtml.includes('pageData'),
         });
-
-        const runParamsRaw = premiumHtml.match(/window\.runParams\s*=\s*({[\s\S]*?});/);
-        console.log("[AliExpress] runParams found:", !!runParamsRaw);
-        if (runParamsRaw) {
-          console.log("[AliExpress] runParams length:", runParamsRaw[1]?.length);
-          console.log("[AliExpress] runParams snippet:", runParamsRaw[1]?.slice(0, 500));
-        }
-        const runParamsRaw2 = premiumHtml.match(/window\.runParams\s*=\s*(\{.+?\});?\s*\n/);
-        console.log("[AliExpress] runParams alt match:", !!runParamsRaw2);
 
         const aliData = extractAliExpressData(premiumHtml);
         console.log("[AliExpress] runParams/__INIT_DATA__ extraction:", {
