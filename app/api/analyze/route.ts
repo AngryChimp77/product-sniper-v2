@@ -368,16 +368,28 @@ export async function POST(req: Request) {
       const productId = extractAliExpressProductId(url);
       console.log("[AliExpress] productId:", productId);
 
-      // Primary: ScraperAPI render=true
-      console.log("[AliExpress] Fetching ScraperAPI render=true");
+      // Primary: direct fetch with full browser headers
+      const directUrl = productId
+        ? `https://www.aliexpress.com/item/${productId}.html`
+        : url;
+      console.log("[AliExpress] Fetching direct URL:", directUrl);
       try {
-        const renderRes = await fetch(scraperRenderUrl);
-        console.log("[AliExpress] render=true status:", renderRes.status);
-        const renderedHtml = (await renderRes.text()).slice(0, 200000);
-        console.log("[AliExpress] render=true HTML length:", renderedHtml.length);
-        console.log("[AliExpress] HTML snippet (first 500 chars):", renderedHtml.slice(0, 500));
+        const directRes = await fetch(directUrl, {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Cache-Control": "no-cache",
+          },
+        });
+        console.log("[AliExpress] Direct fetch status:", directRes.status);
+        const directHtml = (await directRes.text()).slice(0, 200000);
+        console.log("[AliExpress] Direct fetch HTML length:", directHtml.length);
+        console.log("[AliExpress] HTML snippet (first 500 chars):", directHtml.slice(0, 500));
 
-        const aliData = extractAliExpressData(renderedHtml);
+        const aliData = extractAliExpressData(directHtml);
         console.log("[AliExpress] runParams/__INIT_DATA__ extraction:", {
           title: aliData.title,
           image: aliData.image,
@@ -386,11 +398,11 @@ export async function POST(req: Request) {
           reviews: aliData.reviews,
         });
 
-        const ld = extractJSONLD(renderedHtml) as any;
-        const aliImage = extractAliExpressImage(renderedHtml);
-        const scraped = extractRatingAndReviews(renderedHtml);
+        const ld = extractJSONLD(directHtml) as any;
+        const aliImage = extractAliExpressImage(directHtml);
+        const scraped = extractRatingAndReviews(directHtml);
 
-        title = aliData.title || ld.title || extractMetaTitle(renderedHtml) || "";
+        title = aliData.title || ld.title || extractMetaTitle(directHtml) || "";
         image_url = aliData.image || aliImage || ld.image || null;
         price = aliData.price || ld.price || "";
         rating = aliData.rating || ld.rating || scraped.rating || "";
@@ -398,48 +410,37 @@ export async function POST(req: Request) {
 
         if (image_url && image_url.startsWith("//")) image_url = `https:${image_url}`;
 
-        console.log("[AliExpress] After render=true:", { title, image_url, price, rating, reviews });
+        console.log("[AliExpress] After direct fetch:", { title, image_url, price, rating, reviews });
       } catch (err) {
-        console.error("[AliExpress] render=true failed:", err);
+        console.error("[AliExpress] Direct fetch failed:", err);
       }
 
-      // Fallback: direct fetch with full browser headers
-      if (!title || !image_url) {
-        const directUrl = productId
-          ? `https://www.aliexpress.com/item/${productId}.html`
-          : url;
-        console.log("[AliExpress] render=true incomplete — direct fetch fallback:", directUrl);
+      // Fallback: ScraperAPI without render (if direct fetch got no title)
+      if (!title) {
+        console.log("[AliExpress] Direct fetch got no title — falling back to ScraperAPI");
         try {
-          const directRes = await fetch(directUrl, {
-            headers: {
-              "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-              "Accept-Language": "en-US",
-              "Accept-Encoding": "gzip, deflate, br",
-              "Cache-Control": "no-cache",
-            },
-          });
-          console.log("[AliExpress] Direct fallback status:", directRes.status);
-          const directHtml = (await directRes.text()).slice(0, 200000);
-          console.log("[AliExpress] Direct fallback HTML length:", directHtml.length);
-          console.log("[AliExpress] Direct fallback snippet:", directHtml.slice(0, 500));
+          const scraperRes = await fetch(scraperUrl);
+          console.log("[AliExpress] ScraperAPI fallback status:", scraperRes.status);
+          const scraperHtml = (await scraperRes.text()).slice(0, 200000);
+          console.log("[AliExpress] ScraperAPI fallback HTML length:", scraperHtml.length);
+          console.log("[AliExpress] ScraperAPI fallback snippet:", scraperHtml.slice(0, 500));
 
-          const directData = extractAliExpressData(directHtml);
-          const directImage = extractAliExpressImage(directHtml);
-          const directLd = extractJSONLD(directHtml) as any;
+          const aliData = extractAliExpressData(scraperHtml);
+          const ld = extractJSONLD(scraperHtml) as any;
+          const aliImage = extractAliExpressImage(scraperHtml);
+          const scraped = extractRatingAndReviews(scraperHtml);
 
-          if (!title) title = directData.title || directLd.title || extractMetaTitle(directHtml) || "";
-          if (!image_url) image_url = directData.image || directImage || directLd.image || null;
-          if (!price) price = directData.price || directLd.price || "";
-          if (!rating) rating = directData.rating || directLd.rating || "";
-          if (!reviews) reviews = directData.reviews || directLd.reviews || "";
+          if (!title) title = aliData.title || ld.title || extractMetaTitle(scraperHtml) || "";
+          if (!image_url) image_url = aliData.image || aliImage || ld.image || null;
+          if (!price) price = aliData.price || ld.price || "";
+          if (!rating) rating = aliData.rating || ld.rating || scraped.rating || "";
+          if (!reviews) reviews = aliData.reviews || ld.reviews || scraped.reviews || "";
 
           if (image_url && image_url.startsWith("//")) image_url = `https:${image_url}`;
 
-          console.log("[AliExpress] After direct fallback:", { title, image_url, price, rating, reviews });
+          console.log("[AliExpress] After ScraperAPI fallback:", { title, image_url, price, rating, reviews });
         } catch (err) {
-          console.error("[AliExpress] Direct fallback failed:", err);
+          console.error("[AliExpress] ScraperAPI fallback failed:", err);
         }
       }
 
