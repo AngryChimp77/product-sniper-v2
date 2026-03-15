@@ -253,6 +253,80 @@ function extractAliExpressProductId(url: string): string | null {
   return match ? match[1] : null;
 }
 
+async function fetchAliExpressProductAPI(productId: string): Promise<{
+  price: string | null;
+  rating: string | null;
+  reviews: string | null;
+  orders: string | null;
+}> {
+  const result = { price: null as string | null, rating: null as string | null, reviews: null as string | null, orders: null as string | null };
+  try {
+    const apiUrl = `https://www.aliexpress.com/fn/search-pc/index?productId=${productId}`;
+    const res = await fetch(apiUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": `https://www.aliexpress.com/item/${productId}.html`,
+      },
+    });
+    console.log("[AliAPI] status:", res.status);
+    const data = await res.json();
+    console.log("[AliAPI] raw response:", JSON.stringify(data).slice(0, 2000));
+
+    // Recursively search nested objects for known keys
+    function dig(obj: any): void {
+      if (!obj || typeof obj !== "object") return;
+
+      // Price — original only, avoid promo/activity/voucher
+      if (!result.price) {
+        const p =
+          obj.formatedOriginalPrice ||
+          obj.originalPriceText ||
+          obj.originalPrice;
+        if (p && typeof p === "string") result.price = p;
+      }
+
+      // Rating
+      if (!result.rating) {
+        const r =
+          obj.averageStar ??
+          obj.productAverageStar ??
+          obj.ratingScore;
+        if (r != null) result.rating = String(r);
+      }
+
+      // Reviews
+      if (!result.reviews) {
+        const v =
+          obj.totalValidNum ??
+          obj.reviewCount ??
+          obj.feedbackTotalNum;
+        if (v != null) result.reviews = String(v);
+      }
+
+      // Orders
+      if (!result.orders) {
+        const o =
+          obj.formatTradeCount ||
+          obj.tradeCount ||
+          obj.totalTrade;
+        if (o != null) result.orders = String(o);
+      }
+
+      for (const val of Object.values(obj)) {
+        if (val && typeof val === "object") dig(val);
+      }
+    }
+
+    dig(data);
+    console.log("[AliAPI] extracted:", result);
+  } catch (err) {
+    console.error("[AliAPI] fetch/parse failed:", err);
+  }
+  return result;
+}
+
 function extractOGImage(html: string): string | null {
   const match = html.match(/<meta property="og:image" content="([^"]+)"/i);
   return match ? match[1] : null;
@@ -477,6 +551,16 @@ export async function POST(req: Request) {
       const productId = extractAliExpressProductId(url);
       console.log("[AliExpress] productId:", productId);
 
+      // Step 0: AliExpress product API — fast structured data
+      if (productId) {
+        const apiData = await fetchAliExpressProductAPI(productId);
+        if (apiData.price) price = apiData.price;
+        if (apiData.rating) rating = apiData.rating;
+        if (apiData.reviews) reviews = apiData.reviews;
+        if (apiData.orders) orders = apiData.orders;
+        console.log("[AliExpress] After API step:", { price, rating, reviews, orders });
+      }
+
       // Primary: direct fetch with full browser headers
       const directUrl = productId
         ? `https://www.aliexpress.com/item/${productId}.html`
@@ -514,10 +598,10 @@ export async function POST(req: Request) {
 
         title = aliData.title || ld.title || extractMetaTitle(directHtml) || "";
         image_url = aliData.image || aliImage || ld.image || null;
-        price = aliData.price || ld.price || "";
-        rating = aliData.rating || ld.rating || scraped.rating || "";
-        reviews = aliData.reviews || ld.reviews || scraped.reviews || "";
-        orders = aliData.orders || "";
+        if (!price) price = aliData.price || ld.price || "";
+        if (!rating) rating = aliData.rating || ld.rating || scraped.rating || "";
+        if (!reviews) reviews = aliData.reviews || ld.reviews || scraped.reviews || "";
+        if (!orders) orders = aliData.orders || "";
 
         if (image_url && image_url.startsWith("//")) image_url = `https:${image_url}`;
 
